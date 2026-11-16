@@ -1,23 +1,52 @@
 #!/bin/sh
 
-set -x
-set -e
+# Install the Free Pascal + Lazarus toolchain used to build the macOS app.
+#
+# Everything is installed in a user-writable directory (no sudo needed):
+#   $TOOLCHAIN_DIR/fpc-<version>   Free Pascal (arm64 and x86_64 compilers)
+#   $TOOLCHAIN_DIR/lazarus         Lazarus (lazbuild, lazres), built from source
+#   $TOOLCHAIN_DIR/shim            assembler shim, see fpc-asm-shim/clang
+#
+# Requires an Apple Silicon Mac. The x86_64 compiler runs under Rosetta 2.
 
-lazarus_ver="2.2.6"
+set -ex
+
 fpc_ver="3.2.2"
-fpc="fpc-${fpc_ver}.intelarm64-macosx"
-lazarus="Lazarus-${lazarus_ver}-0-x86_64-macosx"
-sourceforge_base="https://downloads.sourceforge.net/project/lazarus/Lazarus%20macOS%20x86-64/Lazarus%20${lazarus_ver}"
-download_attempts=3
-download_timeout="${download_timeout:-600}"
-download_backoff=5
-fpc_mount=""
-fpc_mounted=0
-fpc_downloaded=0
+fpc_dmg="fpc-${fpc_ver}.intelarm64-macosx.dmg"
+fpc_sha256="05d4510c8c887e3c68de20272abf62171aa5b2ef1eba6bce25e4c0bc41ba8b7d"
+fpc_url="https://downloads.sourceforge.net/project/freepascal/Mac%20OS%20X/${fpc_ver}/${fpc_dmg}"
+lazarus_tag="lazarus_4_8"
+lazarus_commit="62c14a4d18c81f222127d42ce9b89b922c63fcbf"
+lazarus_url="https://gitlab.com/freepascal.org/lazarus/lazarus.git"
+stamp="fpc-${fpc_ver}+${lazarus_tag}+shim1"
 
-if [ -n "${sourceforge_mirror-}" ]; then
-  mirror_string="&use_mirror=${sourceforge_mirror}"
+toolchain_dir="${TOOLCHAIN_DIR:-$HOME/pascal-toolchain}"
+download_attempts=3
+download_timeout="${download_timeout:-900}"
+download_backoff=5
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+
+if [ "$(uname -m)" != "arm64" ]; then
+  echo "An Apple Silicon Mac is required to build the application." >&2
+  exit 1
 fi
+
+if ! arch -x86_64 /usr/bin/true 2> /dev/null; then
+  echo "Rosetta 2 is required to run the x86_64 compiler. Run: softwareupdate --install-rosetta" >&2
+  exit 1
+fi
+
+fpc_dir="$toolchain_dir/fpc-$fpc_ver"
+lazarus_dir="$toolchain_dir/lazarus"
+
+if [ -f "$toolchain_dir/.installed" ] && [ "$(cat "$toolchain_dir/.installed")" = "$stamp" ] &&
+  [ -x "$lazarus_dir/lazbuild" ] && [ -x "$lazarus_dir/tools/lazres" ]; then
+  echo "Toolchain $stamp is already installed in $toolchain_dir"
+  exit 0
+fi
+
+work_dir="$(mktemp -d "${TMPDIR:-/tmp}/transgui-deps.XXXXXX")"
+fpc_mount=""
 
 detach_disk_image() {
   detach_device=$1
@@ -36,22 +65,14 @@ detach_disk_image() {
   done
 }
 
-cleanup_downloads() {
-  if [ "$fpc_mounted" -eq 1 ]; then
-    if detach_disk_image "$fpc_mount" > /dev/null; then
-      fpc_mounted=0
-    fi
+cleanup() {
+  if [ -n "$fpc_mount" ]; then
+    detach_disk_image "$fpc_mount" > /dev/null || true
   fi
-  if [ "$fpc_mounted" -eq 0 ] && [ -n "$fpc_mount" ]; then
-    rmdir "$fpc_mount" > /dev/null 2>&1 || true
-  fi
-  if [ "$fpc_mounted" -eq 0 ] && [ "$fpc_downloaded" -eq 1 ]; then
-    rm -f "fpc.dmg" || true
-  fi
-  rm -f "fpc.dmg.part" "lazarus.pkg.part" || true
+  rm -rf "$work_dir"
 }
 
-trap cleanup_downloads EXIT
+trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
 download_url() {
@@ -82,109 +103,77 @@ download_url() {
   return 1
 }
 
-download_package() {
-  package="$1"
-  destination="$2"
-  package_url="${sourceforge_base}/${package}?r=&ts=$(date +%s)"
-
-  rm -f "${destination}.part"
-
-  if [ -n "${mirror_string-}" ]; then
-    if download_url "${package_url}${mirror_string}" "$destination"; then
-      return 0
-    fi
-
-    echo "Preferred SourceForge mirror failed; retrying automatic selection" >&2
-    rm -f "${destination}.part"
+install_fpc() {
+  download_url "$fpc_url" "$work_dir/fpc.dmg"
+  actual_sha256="$(shasum -a 256 "$work_dir/fpc.dmg" | awk '{print $1}')"
+  if [ "$actual_sha256" != "$fpc_sha256" ]; then
+    echo "Checksum mismatch for $fpc_dmg" >&2
+    echo "  expected: $fpc_sha256" >&2
+    echo "  actual:   $actual_sha256" >&2
+    exit 1
   fi
 
-  download_url "$package_url" "$destination"
-}
+  fpc_mount="$work_dir/mnt"
+  mkdir -p "$fpc_mount"
+  hdiutil attach -nobrowse -readonly -mountpoint "$fpc_mount" "$work_dir/fpc.dmg"
 
-ppcx64_target="/usr/local/lib/fpc/${fpc_ver}/ppcx64"
-ppcx64_link="/usr/local/bin/ppcx64"
-fpc_bin="/usr/local/bin/fpc"
-lazbuild_target="/Applications/Lazarus/lazbuild"
-lazbuild_link="/usr/local/bin/lazbuild"
-
-validate_ppcx64_link() {
-  if [ -L "$ppcx64_link" ]; then
-    ppcx64_link_target="$(readlink "$ppcx64_link")"
-    case "$ppcx64_link_target" in
-      /*) ppcx64_target_dir="$(dirname "$ppcx64_link_target")" ;;
-      *) ppcx64_target_dir="$(dirname "$ppcx64_link")/$(dirname "$ppcx64_link_target")" ;;
-    esac
-    if ppcx64_target_dir="$(cd -P "$ppcx64_target_dir" 2> /dev/null && pwd)" &&
-      [ "$ppcx64_target_dir/$(basename "$ppcx64_link_target")" = "$ppcx64_target" ]; then
-      return 0
-    fi
-    echo "$ppcx64_link exists and does not resolve to $ppcx64_target" >&2
-    return 1
-  fi
-
-  if [ -e "$ppcx64_link" ]; then
-    echo "$ppcx64_link exists and is not a symlink" >&2
-    return 1
-  fi
-
-  return 0
-}
-
-if [ ! -x "$fpc_bin" ] || [ "$("$fpc_bin" -iV)" != "$fpc_ver" ] || [ ! -x "$ppcx64_target" ]; then
-  if [ -e "$ppcx64_link" ] && [ ! -L "$ppcx64_link" ]; then
-    validate_ppcx64_link
-  fi
-  download_package "$fpc.dmg" "fpc.dmg"
-  fpc_downloaded=1
-  fpc_mount="$(mktemp -d "${TMPDIR:-/tmp}/transgui-fpc.XXXXXX")"
-  hdiutil attach -nobrowse -readonly -mountpoint "$fpc_mount" "fpc.dmg"
-  fpc_mounted=1
-  fpc_pkg="$fpc_mount/fpc-${fpc_ver}-intelarm64-macosx.mpkg"
+  fpc_pkg="$fpc_mount/fpc-${fpc_ver}-intelarm64-macosx.mpkg/Contents/Packages/fpc-${fpc_ver}-intelarm64-macosx.pkg"
   if [ ! -e "$fpc_pkg" ]; then
-    echo "No installer package found in fpc.dmg" >&2
+    echo "No installer package found in $fpc_dmg" >&2
     exit 1
   fi
-  sudo installer -pkg "$fpc_pkg" -target /
+  pkgutil --expand-full "$fpc_pkg" "$work_dir/fpc-expanded"
   detach_disk_image "$fpc_mount"
-  fpc_mounted=0
-  cleanup_downloads
-fi
+  fpc_mount=""
 
-if [ ! -x "$ppcx64_target" ]; then
-  echo "$ppcx64_target is missing or is not executable" >&2
-  exit 1
-fi
-if ! validate_ppcx64_link; then
-  if [ ! -L "$ppcx64_link" ]; then
+  rm -rf "$fpc_dir"
+  mkdir -p "$fpc_dir"
+  cp -R "$work_dir/fpc-expanded/Payload/usr/local/bin" "$work_dir/fpc-expanded/Payload/usr/local/lib" \
+    "$work_dir/fpc-expanded/Payload/usr/local/share" "$fpc_dir/"
+}
+
+configure_fpc() {
+  mkdir -p "$fpc_dir/etc" "$toolchain_dir/shim"
+  cp "$script_dir/fpc-asm-shim/clang" "$toolchain_dir/shim/clang"
+  chmod +x "$toolchain_dir/shim/clang"
+
+  "$fpc_dir/bin/fpcmkcfg" -d "basepath=$fpc_dir/lib/fpc/$fpc_ver" -o "$fpc_dir/etc/fpc.cfg"
+  {
+    echo ""
+    echo "# Assembler shim for aarch64-darwin (see setup/macosx/fpc-asm-shim/clang)"
+    echo "-FD$toolchain_dir/shim"
+  } >> "$fpc_dir/etc/fpc.cfg"
+}
+
+install_lazarus() {
+  rm -rf "$lazarus_dir"
+  git clone --depth 1 --branch "$lazarus_tag" "$lazarus_url" "$lazarus_dir"
+  actual_commit="$(git -C "$lazarus_dir" rev-parse HEAD)"
+  if [ "$actual_commit" != "$lazarus_commit" ]; then
+    echo "Unexpected Lazarus commit for $lazarus_tag" >&2
+    echo "  expected: $lazarus_commit" >&2
+    echo "  actual:   $actual_commit" >&2
     exit 1
   fi
-  sudo rm "$ppcx64_link"
-fi
-if [ ! -L "$ppcx64_link" ]; then
-  sudo ln -s "$ppcx64_target" "$ppcx64_link"
-fi
-validate_ppcx64_link
 
-if [ ! -x "$lazbuild_target" ] || [ "$("$lazbuild_target" -v)" != "$lazarus_ver" ]; then
-  download_package "$lazarus.pkg" "lazarus.pkg"
-  sudo installer -pkg "lazarus.pkg" -target /
-  rm "lazarus.pkg"
-fi
+  # The Lazarus makefiles are not safe to run in parallel.
+  (
+    cd "$lazarus_dir"
+    PPC_CONFIG_PATH="$fpc_dir/etc" PATH="$fpc_dir/bin:$PATH" \
+      make lazbuild LCL_PLATFORM=cocoa CPU_TARGET=aarch64 OS_TARGET=darwin \
+      PP="$fpc_dir/bin/ppca64" FPC="$fpc_dir/bin/fpc"
+  )
+}
 
-if [ ! -x "$lazbuild_target" ]; then
-  echo "$lazbuild_target is missing or is not executable" >&2
+mkdir -p "$toolchain_dir"
+install_fpc
+configure_fpc
+install_lazarus
+
+if [ ! -x "$lazarus_dir/lazbuild" ] || [ ! -x "$lazarus_dir/tools/lazres" ]; then
+  echo "lazbuild or lazres was not built" >&2
   exit 1
 fi
-if [ -e "$lazbuild_link" ] && [ ! -L "$lazbuild_link" ]; then
-  echo "$lazbuild_link exists and is not a symlink" >&2
-  exit 1
-fi
-if [ -L "$lazbuild_link" ] && [ "$(readlink "$lazbuild_link")" != "$lazbuild_target" ]; then
-  sudo rm "$lazbuild_link"
-fi
-if [ ! -L "$lazbuild_link" ]; then
-  sudo ln -s "$lazbuild_target" "$lazbuild_link"
-fi
 
-test "$("$fpc_bin" -iV)" = "$fpc_ver"
-test "$("$lazbuild_link" -v)" = "$lazarus_ver"
+echo "$stamp" > "$toolchain_dir/.installed"
+"$fpc_dir/bin/ppca64" -iV

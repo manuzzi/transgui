@@ -1,0 +1,62 @@
+#!/bin/bash
+# Assembler shim for FPC 3.2.x on aarch64-darwin with Apple's current linker (ld-prime).
+#
+# FPC emits some Objective-C metadata (method lists, etc.) under assembler-local
+# labels ("Ld<N>"). A leading uppercase "L" never reaches the object file, so the
+# linker cannot split atoms there and fails with:
+#   ld: malformed method list atom 'ltmp5' ..., fixups found beyond the number of method entries
+# Renaming those labels to "lLd<N>" (linker-private, lowercase "l") fixes the atoms.
+#
+# Only the label names defined inside "__DATA, __objc_const" are renamed.
+# Everything else is passed through to the real clang untouched.
+
+REAL_CLANG=/usr/bin/clang
+
+[ -n "$FPCSHIM_LOG" ] && echo "shim called: $*" >> "$FPCSHIM_LOG"
+
+# Find the assembler source among the arguments.
+src=""
+idx=0
+args=("$@")
+for a in "${args[@]}"; do
+  case "$a" in
+    *.s)
+      src="$a"
+      src_idx=$idx
+      ;;
+  esac
+  idx=$((idx + 1))
+done
+
+# Only arm64 objects are affected; leave other architectures (e.g. x86_64) untouched.
+case " $* " in
+  *arm64* | *aarch64*) ;;
+  *) exec "$REAL_CLANG" "$@" ;;
+esac
+
+if [ -z "$src" ] || [ ! -f "$src" ] || ! grep -q '__objc_const' "$src" 2> /dev/null; then
+  exec "$REAL_CLANG" "$@"
+fi
+
+tmp="$(mktemp "${TMPDIR:-/tmp}/fpcasm.XXXXXX")" || exec "$REAL_CLANG" "$@"
+mv "$tmp" "$tmp.s"
+tmp="$tmp.s"
+trap 'rm -f "$tmp"' EXIT
+
+/usr/bin/perl -e '
+  local $/; open(my $in, "<", $ARGV[0]) or die; my $t = <$in>; close $in;
+  my (%names, $sec);
+  for my $line (split /\n/, $t) {
+    if ($line =~ /^\s*\.section\s+(\S+)\s*,\s*(\S+)/) { $sec = "$1,$2"; }
+    elsif ($line =~ /^\s*\.(text|data|const)\b/) { $sec = ""; }
+    elsif ($sec eq "__DATA,__objc_const" && $line =~ /^(Ld\d+):/) { $names{$1} = 1; }
+  }
+  if (%names) {
+    my $re = join("|", map { quotemeta } sort keys %names);
+    $t =~ s/\b($re)\b/l$1/g;
+  }
+  open(my $out, ">", $ARGV[1]) or die; print $out $t; close $out;
+' "$src" "$tmp" || exec "$REAL_CLANG" "$@"
+
+args[src_idx]="$tmp"
+"$REAL_CLANG" "${args[@]}"
