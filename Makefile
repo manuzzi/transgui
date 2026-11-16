@@ -358,10 +358,10 @@ ifeq ($(FULL_TARGET),aarch64-darwin)
 override TARGET_PROGRAMS+=transgui
 endif
 ifeq ($(FULL_TARGET),x86_64-darwin)
-override COMPILER_OPTIONS+=-MObjFPC -dLCL -dLCL$(LCL_WIDGETSET) $(COMP_OPT)  -k-macosx_version_min -k10.5 -XR/Developer/SDKs/MacOSX10.5.sdk/
+override COMPILER_OPTIONS+=-MObjFPC -dLCL -dLCL$(LCL_WIDGETSET) $(COMP_OPT)
 endif
 ifeq ($(FULL_TARGET),aarch64-darwin)
-override COMPILER_OPTIONS+=-MObjFPC -dLCL -dLCL$(LCL_WIDGETSET) $(COMP_OPT)  -k-macosx_version_min -k10.5 -XR/Developer/SDKs/MacOSX10.5.sdk/
+override COMPILER_OPTIONS+=-MObjFPC -dLCL -dLCL$(LCL_WIDGETSET) $(COMP_OPT)
 endif
 ifeq ($(FULL_TARGET),x86_64-darwin)
 override COMPILER_UNITDIR+=synapse/source/lib $(LAZARUS_DIR)/lcl/units/$(FULL_TARGET) $(LAZARUS_DIR)/lcl/units/$(FULL_TARGET)/$(LCL_WIDGETSET) $(LAZARUS_DIR)/components/lazutils/lib/$(FULL_TARGET)
