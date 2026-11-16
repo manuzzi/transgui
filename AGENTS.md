@@ -10,6 +10,7 @@ Transmission Remote GUI is a Lazarus/Free Pascal macOS (Cocoa) desktop client fo
 - `rpc.pas` owns Transmission daemon communication through Synapse HTTP/SSL code. `TRpcThread` performs background polling and uses `Synchronize` for UI updates, so daemon-facing behavior should generally go through this layer rather than direct UI-side HTTP calls.
 - `baseform.pas` provides shared form behavior for dialogs such as `AddTorrent`, `ConnOptions`, `Options`, and `TorrProps`.
 - `varlist.pas` and `vargrid.pas` implement the custom data/grid layer used by torrent, peer, tracker, and file lists.
+- `macnotify.pas` posts native notifications through `UNUserNotificationCenter`, using a small Objective-C binding declared in Pascal (the framework is not in the FPC headers). It does nothing outside an `.app` bundle, so the bare `units/transgui` binary never notifies, and macOS rejects bundles located under `/tmp`. The `TrayNotify` ini key ("Show notifications" in Options) turns it on and off.
 - `restranslator.pas` loads `lang/transgui.*` files at runtime; this is the app's own localization system.
 - `utils.pas` contains UTF-8-safe file/config helpers, including `TIniFileUtf8`; prefer the existing UTF-8 wrappers used by the app over plain RTL path/file APIs.
 - `synapse/source/lib` is vendored networking code. Treat `synapse/` as third-party code unless applying a deliberate upstream or security fix. It still contains code for other operating systems; leave it as is.

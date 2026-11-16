@@ -153,7 +153,7 @@ inherited OptionsForm: TOptionsForm
       end
       object gbTray: TGroupBox
         Left = 8
-        Height = 73
+        Height = 47
         Top = 6
         Width = 523
         Anchors = [akTop, akLeft, akRight]
@@ -164,41 +164,34 @@ inherited OptionsForm: TOptionsForm
         ChildSizing.EnlargeHorizontal = crsHomogenousChildResize
         ChildSizing.Layout = cclLeftToRightThenTopToBottom
         ChildSizing.ControlsPerLine = 2
-        ClientHeight = 53
+        ClientHeight = 27
         ClientWidth = 519
         TabOrder = 0
-        object cbTrayMinimize: TCheckBox
+        object cbTrayClose: TCheckBox
           Left = 10
           Height = 19
           Top = 4
-          Width = 231
-          Caption = 'Minimize to tray'
+          Width = 249
+          Caption = 'Close to tray'
           TabOrder = 0
         end
-        object cbTrayClose: TCheckBox
-          Left = 241
+        object cbTrayIconAlways: TCheckBox
+          Left = 259
           Height = 19
           Top = 4
-          Width = 268
-          Caption = 'Close to tray'
+          Width = 250
+          Caption = 'Tray icon always visible'
           TabOrder = 1
         end
-        object cbTrayIconAlways: TCheckBox
-          Left = 10
-          Height = 19
-          Top = 29
-          Width = 231
-          Caption = 'Tray icon always visible'
-          TabOrder = 2
-        end
-        object cbTrayNotify: TCheckBox
-          Left = 241
-          Height = 19
-          Top = 29
-          Width = 268
-          Caption = 'Show notifications in tray icon'
-          TabOrder = 3
-        end
+      end
+      object cbShowNotifications: TCheckBox
+        Left = 8
+        Height = 19
+        Top = 59
+        Width = 523
+        Anchors = [akTop, akLeft, akRight]
+        Caption = 'Show notifications'
+        TabOrder = 1
       end
       object cbLanguage: TComboBox
         Left = 248
@@ -211,7 +204,7 @@ inherited OptionsForm: TOptionsForm
         OnEnter = cbLanguageEnter
         OnMouseDown = cbLanguageMouseDown
         Style = csDropDownList
-        TabOrder = 4
+        TabOrder = 5
       end
       object txIntfScale: TLabel
         Left = 8
@@ -229,7 +222,7 @@ inherited OptionsForm: TOptionsForm
         Increment = 5
         MaxValue = 200
         MinValue = 75
-        TabOrder = 3
+        TabOrder = 4
         Value = 100
       end
       object txPerc: TLabel
@@ -247,7 +240,7 @@ inherited OptionsForm: TOptionsForm
         Width = 171
         Caption = 'Check for new version every:'
         OnClick = cbCheckNewVersionClick
-        TabOrder = 1
+        TabOrder = 2
       end
       object edCheckVersionDays: TSpinEdit
         Left = 248
@@ -256,7 +249,7 @@ inherited OptionsForm: TOptionsForm
         Width = 70
         MaxValue = 999
         MinValue = 1
-        TabOrder = 2
+        TabOrder = 3
         Value = 5
       end
       object txDays: TLabel

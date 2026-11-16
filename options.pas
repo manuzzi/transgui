@@ -51,10 +51,9 @@ type
     cbShowAddTorrentWindow: TCheckBox;
     cbTrayClose: TCheckBox;
     cbTrayIconAlways: TCheckBox;
-    cbTrayMinimize: TCheckBox;
     cbCheckNewVersion: TCheckBox;
     cbCalcAvg: TCheckBox;
-    cbTrayNotify: TCheckBox;
+    cbShowNotifications: TCheckBox;
     edIntfScale: TSpinEdit;
     edCheckVersionDays: TSpinEdit;
     edRefreshInterval: TSpinEdit;

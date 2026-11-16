@@ -930,7 +930,7 @@ uses
   urllistenerosx,
   synacode, ConnOptions, clipbrd, DateUtils, TorrProps, DaemonOptions, About,
   ToolWin, download, ColSetup, AddLink, MoveTorrent, AddTracker, lcltype,
-  Options, ButtonPanel, BEncode, synautil, Math, FolderHistory;
+  Options, ButtonPanel, BEncode, synautil, Math, FolderHistory, macnotify;
 
   {TMyHashMap}
   function TMyHashMap.DefaultHashKey(const Key: Integer): Integer;
@@ -1852,6 +1852,7 @@ begin
     TickTimer.Enabled:=True;
     UpdateTray;
   end;
+  InitNotifications;
   UpdateConnections;
 
   i:=Ini.ReadInteger('Interface', 'LastRpcVersion', -1);
@@ -2250,10 +2251,9 @@ begin
     edRefreshInterval.Value:=Ini.ReadInteger('Interface', 'RefreshInterval', 5);
     edRefreshIntervalMin.Value:=Ini.ReadInteger('Interface', 'RefreshIntervalMin', 20);
     cbCalcAvg.Checked:=FCalcAvg;
-    cbTrayMinimize.Enabled:=False;
     cbTrayClose.Checked:=Ini.ReadBool('Interface', 'TrayClose', False);
     cbTrayIconAlways.Checked:=Ini.ReadBool('Interface', 'TrayIconAlways', True);
-    cbTrayNotify.Checked:=Ini.ReadBool('Interface', 'TrayNotify', True);
+    cbShowNotifications.Checked:=Ini.ReadBool('Interface', 'TrayNotify', True);
 
     cbShowAddTorrentWindow.Checked:=Ini.ReadBool('Interface', 'ShowAddTorrentWindow', True);
     cbDeleteTorrentFile.Checked:=Ini.ReadBool('Interface', 'DeleteTorrentFile', False);
@@ -2271,7 +2271,9 @@ begin
       Ini.WriteBool('Interface', 'CalcAvg', cbCalcAvg.Checked);
       Ini.WriteBool('Interface', 'TrayClose', cbTrayClose.Checked);
       Ini.WriteBool('Interface', 'TrayIconAlways', cbTrayIconAlways.Checked);
-      Ini.WriteBool('Interface', 'TrayNotify', cbTrayNotify.Checked);
+      Ini.WriteBool('Interface', 'TrayNotify', cbShowNotifications.Checked);
+      if cbShowNotifications.Checked then
+        RequestNotificationAuthorization;
 
       Ini.WriteBool('Interface', 'ShowAddTorrentWindow', cbShowAddTorrentWindow.Checked);
       Ini.WriteBool('Interface', 'DeleteTorrentFile', cbDeleteTorrentFile.Checked);
@@ -2924,7 +2926,7 @@ procedure TMainForm.UpdateTray;
 begin
   TrayIcon.Visible:=
     Ini.ReadBool('Interface', 'TrayIconAlways', True) or
-    ((WindowState = wsMinimized) and Ini.ReadBool('Interface', 'TrayMinimize', True)) or
+    (WindowState = wsMinimized) or
     (not Self.Visible and Ini.ReadBool('Interface', 'TrayClose', False));
 
   acShowApp.Visible:=False;
@@ -2962,10 +2964,8 @@ end;
 
 procedure TMainForm.DownloadFinished(const TorrentName: string);
 begin
-  if not TrayIcon.Visible or not Ini.ReadBool('Interface', 'TrayNotify', True) then exit;
-  TrayIcon.BalloonHint:=Format(sFinishedDownload, [TorrentName]);
-  TrayIcon.BalloonTitle:=sDownloadComplete;
-  TrayIcon.ShowBalloonHint;
+  if not Ini.ReadBool('Interface', 'TrayNotify', True) then exit;
+  PostNotification(sDownloadComplete, Format(sFinishedDownload, [TorrentName]));
 end;
 
 Procedure TMainForm.DoOpenFlagsZip(Sender: TObject; var AStream: TStream);
@@ -4983,6 +4983,8 @@ begin
     if not FStarted then begin
       Application.ProcessMessages;
       FStarted:=True;
+      if Ini.ReadBool('Interface', 'TrayNotify', True) then
+        RequestNotificationAuthorization;
       acConnect.Execute;
       Application.ProcessMessages;
       panTransfer.ChildSizing.Layout:=cclLeftToRightThenTopToBottom;
