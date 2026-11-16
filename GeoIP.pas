@@ -27,7 +27,7 @@ unit GeoIP;
 
 interface
 
-uses Classes, SysUtils, utils, {$ifdef FPC} sockets {$else} WinSock {$endif};
+uses Classes, SysUtils, utils, sockets;
 
 type
   TGeoIPResult = (
@@ -349,21 +349,9 @@ begin
 end;
 
 function TGeoIP.AddrToNum(const IPAddr: string): Cardinal;
-{$ifdef FPC}
 begin
   Result:=StrToHostAddr(IPAddr).s_addr;
 end;
-{$else}
-var
-  netlong: LongInt;
-begin
-  netlong := inet_addr(PChar(IPAddr));
-  if netlong <> INADDR_NONE then
-    Result := ntohl(netlong)
-  else
-    Result := 0;
-end;
-{$endif}
 
 function TGeoIP.GetCity(const IPAddr: string; var GeoIPCity: TGeoIPCity): TGeoIPResult;
 var

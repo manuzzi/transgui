@@ -195,41 +195,10 @@ var
   OpenSSLInitLock: TCriticalSection;
 
 function EnsureOpenSSLLoaded(out ASSLName, AUtilName: string): boolean;
-{$ifdef unix}
-{$ifndef darwin}
-  procedure CheckOpenSSL;
-  const
-  OpenSSLVersions: array[1..6] of string =
-  ('3', '1.1', '1.1.0', '1.0.2', '1.0.0', '0.9.8');
-  var
-    hLib1, hLib2: TLibHandle;
-    i: integer;
-  begin
-    for i:=Low(OpenSSLVersions) to High(OpenSSLVersions) do begin
-      hlib1:=LoadLibrary(PChar('libssl.so.' + OpenSSLVersions[i]));
-      hlib2:=LoadLibrary(PChar('libcrypto.so.' + OpenSSLVersions[i]));
-      if hLib2 <> 0 then
-        FreeLibrary(hLib2);
-      if hLib1 <> 0 then
-        FreeLibrary(hLib1);
-      if (hLib1 <> 0) and (hLib2 <> 0) then begin
-        DLLSSLName:='libssl.so.' + OpenSSLVersions[i];
-        DLLUtilName:='libcrypto.so.' + OpenSSLVersions[i];
-        break;
-      end;
-    end;
-  end;
-{$endif darwin}
-{$endif unix}
 begin
   OpenSSLInitLock.Enter;
   try
     if not IsSSLloaded then begin
-{$ifdef unix}
-{$ifndef darwin}
-      CheckOpenSSL;
-{$endif darwin}
-{$endif unix}
       InitSSLInterface;
     end;
     Result:=IsSSLloaded;

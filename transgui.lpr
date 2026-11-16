@@ -22,23 +22,13 @@
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 *************************************************************************************}
 
-{$ifdef windows}
-{$apptype gui}
-{$endif windows}
-
 program transgui;
 
 {$mode objfpc}{$H+}
 
 uses
-{$ifdef UNIX}
   cthreads,
-  {$ifdef darwin}
   maclocale,
-  {$else}
-  clocale,
-  {$endif}
-{$endif}
   Interfaces, // this includes the LCL widgetset
   Forms
   { you can add units after this }, BaseForm, Main, rpc, AddTorrent,
@@ -46,9 +36,7 @@ uses
   ColSetup, utils, ResTranslator, AddLink, MoveTorrent, AddTracker, Options,
   passwcon;
 
-//{$ifdef windows}
 {$R *.res}
-//{$endif}
 
 begin
 //Application.Scaled:=True; //travis doesnt compile
@@ -57,10 +45,6 @@ begin
 
   Application.Initialize;
   Application.CreateForm(TMainForm, MainForm);
-  
-{$ifdef windows}
-  Application.MainFormOnTaskBar:=true;  // make taskbar button follow main form monitor
-{$endif}
 
   Application.Run;
 end.

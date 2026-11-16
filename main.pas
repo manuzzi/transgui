@@ -35,15 +35,11 @@ interface
 
 uses
   Classes, SysUtils, FileUtil, zstream, LResources, Forms, Controls,
-  {$ifdef windows}
-  windows, ShellApi,
-  {$else}
   lclintf,
-  {$endif windows}
   Graphics, Dialogs, ComCtrls, Menus, ActnList, LCLVersion,
   httpsend, StdCtrls, fpjson, jsonparser, ExtCtrls, rpc, syncobjs, variants, varlist, IpResolver,
   zipper, ResTranslator, VarGrid, StrUtils, LCLProc, Grids, BaseForm, utils, AddTorrent, Types,
-  LazFileUtils, LazUTF8, StringToVK, passwcon, GContnrs,lineinfo, RegExpr;
+  LazFileUtils, LazUTF8, passwcon, GContnrs,lineinfo, RegExpr;
 
 const
   AppName = 'Transmission Remote GUI';
@@ -139,7 +135,6 @@ resourcestring
   sTotalDownloaded = 'Done: %s';
   sTotalRemain = 'Remaining: %s';
 
-  sUserMenu = 'User Menu';
 
   sBiDiDefault = 'Default';
   sBiDiLeftRight = 'Left->Right';
@@ -625,7 +620,6 @@ type
     procedure FormActivate(Sender: TObject);
     procedure FormDropFiles(Sender: TObject; const FileNames: array of String);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
-    procedure FormWindowStateChange(Sender: TObject);
     procedure gTorrentsCellAttributes(Sender: TVarGrid; ACol, ARow, ADataCol: integer; AState: TGridDrawState; var CellAttribs: TCellAttributes);
     procedure gTorrentsClick(Sender: TObject);
     procedure gTorrentsDblClick(Sender: TObject);
@@ -636,7 +630,6 @@ type
     procedure gTorrentsResize(Sender: TObject);
     procedure gTorrentsSetEditText(Sender: TObject; ACol, ARow: Integer; const Value: string);
     procedure gTorrentsSortColumn(Sender: TVarGrid; var ASortCol: integer);
-    procedure HSplitterChangeBounds(Sender: TObject);
     procedure lvFilesDblClick(Sender: TObject);
     procedure lvFilesEditorHide(Sender: TObject);
     procedure lvFilesEditorShow(Sender: TObject);
@@ -671,12 +664,6 @@ type
     procedure TorrentsListTimerTimer(Sender: TObject);
     procedure pmFilesPopup(Sender: TObject);
     procedure pmTorrentsPopup(Sender: TObject);
-    procedure TrayIconDblClick(Sender: TObject);
-    procedure VSplitterCanOffset(Sender: TObject; var NewOffset: Integer; var Accept: Boolean);
-    procedure VSplitterChangeBounds(Sender: TObject);
-    procedure VSplitterMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-    procedure VSplitterMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
-    procedure VSplitterMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     function CorrectPath (path: string): string; // PETROV
   private
     FStarted: boolean;
@@ -704,23 +691,12 @@ type
     FLinksFromClipboard: boolean;
     FCheckingClipboardLink: boolean;
     FLastClipboardLink: string;
-    FLinuxOpenDoc: integer; // no del!
+    FOpenDocMode: integer;
     FFromNow: boolean;
     FWatchLocalFolder: string;
     FWatchDestinationFolder: string;
     FRow: integer;
     FCol: integer;
-{$ifdef windows}
-    FFileManagerDefault: string;
-    FFileManagerDefaultParam: string;
-    FGlobalHotkey: string;
-    fGlobalHotkeyMod: string;
-    FUserDefinedMenuEx: string;
-    FUserDefinedMenuParam: string;
-{$endif windows}
-{$ifdef LCLcarbon}
-    FFormActive: boolean;
-{$endif LCLcarbon}
     FSlowResponse: TProgressImage;
     FDetailsWait: TProgressImage;
     FNormalImages: TImageList;
@@ -735,9 +711,6 @@ type
     FCalcAvg: boolean;
     FPasswords: TStringList;
     FAppProps:TApplicationProperties;
-    FVSplitterDragging: boolean;
-    FVSplitterDragHeight: integer;
-    FVSplitterDragY: integer;
 
     function CreateScaledImages(ASize: integer): TImageList;
     procedure BuildScaledImages;
@@ -783,7 +756,7 @@ type
     procedure UrlLabelClick(Sender: TObject);
     procedure CenterReconnectWindow;
     procedure ProcessPieces(const Pieces: string; PieceCount: integer; const Done: double);
-    function ExecRemoteFile(const FileName: string; SelectFile: boolean; Userdef: boolean= false): boolean;
+    function ExecRemoteFile(const FileName: string; SelectFile: boolean): boolean;
     function GetSelectedTorrents: variant;
     function GetDisplayedTorrents: variant;
     procedure FillDownloadDirs(CB: TComboBox; const CurFolderParam: string);
@@ -803,7 +776,6 @@ type
     procedure CheckClipboardLink;
     procedure CenterDetailsWait;
     procedure SetInfoPaneHeight(AHeight: integer);
-    procedure SetInfoPaneSplitterPosition(APosition: integer);
     procedure ReadLocalFolderWatch;
     function GetPageInfoType(pg: TTabSheet): TAdvInfoType;
     procedure DetailsUpdated;
@@ -811,7 +783,7 @@ type
     procedure FilesTreeStateChanged(Sender: TObject);
     procedure SetCurrentTorrent(TorrentId: integer; RestoreFilesFocus: boolean);
     function SelectTorrent(TorrentId, TimeOut: integer): integer;
-    procedure OpenCurrentTorrent(OpenFolderOnly: boolean; UserDef: boolean=false);
+    procedure OpenCurrentTorrent(OpenFolderOnly: boolean);
   public
     procedure FillTorrentsList(list: TJSONArray);
     procedure FillPeersList(list: TJSONArray);
@@ -847,13 +819,8 @@ var
   FTranslationFileName: string;
   FTranslationLanguage: string;
   FAlterColor: TColor;
-  IsUnity: boolean;
   Ini: TIniFileUtf8;
   FHomeDir: string;
-  {$ifdef windows}
-  PrevWndProc: windows.WNDPROC;
-  HotKeyID: Integer;
-  {$endif windows}
 
 const
   // Torrents list
@@ -960,12 +927,7 @@ const
 implementation
 
 uses
-{$ifdef linux}
-  process, dynlibs,
-{$endif linux}
-{$ifdef darwin}
   urllistenerosx,
-{$endif darwin}
   synacode, ConnOptions, clipbrd, DateUtils, TorrProps, DaemonOptions, About,
   ToolWin, download, ColSetup, AddLink, MoveTorrent, AddTracker, lcltype,
   Options, ButtonPanel, BEncode, synautil, Math, FolderHistory;
@@ -1024,21 +986,6 @@ const
 var
   TR_STATUS_STOPPED, TR_STATUS_CHECK_WAIT, TR_STATUS_CHECK, TR_STATUS_DOWNLOAD_WAIT, TR_STATUS_DOWNLOAD, TR_STATUS_SEED_WAIT, TR_STATUS_SEED: integer;
 
-
-  {$ifdef windows}
-function WndCallback(Ahwnd: HWND; uMsg: UINT; wParam: WParam; lParam: LParam):LRESULT; stdcall;
-begin
-  if (uMsg=WM_HOTKEY) and (WParam=HotKeyID) then
-    begin
-      if (MainForm.Visible = false) or (MainForm.WindowState = wsMinimized) then
-          MainForm.ShowApp
-          else
-          MainForm.HideApp;
-    end;
-  result:=CallWindowProc(PrevWndProc,Ahwnd, uMsg, WParam, LParam);
-end;
-
-  {$endif windows}
 
 function IsHash(Hash: String): boolean;
 var i: integer;
@@ -1289,41 +1236,8 @@ var
   s: string;
   h: System.THandle;
   pid: SizeUInt;
-{$ifdef linux}
-  proc: TProcess;
-  sr: TSearchRec;
-  hLib: TLibHandle;
-{$endif linux}
 begin
   Application.Title:=AppName;
-{$ifdef linux}
-  IsUnity:=CompareText(GetEnvironmentVariable('XDG_CURRENT_DESKTOP'), 'unity') = 0;
-  if GetEnvironmentVariable('LIBOVERLAY_SCROLLBAR') <> '0' then begin
-    i:=FindFirstUTF8('/usr/lib/liboverlay-scrollbar*', faAnyFile, sr);
-    FindClose(sr);
-    hLib:=LoadLibrary('liboverlay-scrollbar.so');
-    if hLib <> 0 then
-      FreeLibrary(hLib);
-    if (i = 0) or (hLib <> 0) then begin
-      // Turn off overlay scrollbars, since they are not supported yet.
-      // Restart the app with the LIBOVERLAY_SCROLLBAR=0 env var.
-      proc:=TProcess.Create(nil);
-      try
-        proc.Executable:=ParamStrUTF8(0);
-        for i:=1 to ParamCount do
-      proc.Parameters.Add(ParamStrUTF8(i));
-        for i:=0 to GetEnvironmentVariableCount - 1 do
-          proc.Environment.Add(GetEnvironmentString(i));
-        proc.Environment.Values['LIBOVERLAY_SCROLLBAR']:='0';
-        proc.Execute;
-      finally
-        proc.Free;
-      end;
-      Result:=False;
-      exit;
-    end;
-  end;
-{$endif linux}
   FHomeDir:=GetCmdSwitchValue('home');
   if FHomeDir = '' then begin
     if FileExistsUTF8(ChangeFileExt(ParamStrUTF8(0), '.ini')) then
@@ -1359,14 +1273,6 @@ begin
 
   if FileExistsUTF8(FRunFileName) then begin
     // Another process is running
-    h:=FileOpenUTF8(FRunFileName, fmOpenRead or fmShareDenyNone);
-    if FileRead(h, pid, SizeOf(pid)) = SizeOf(pid) then begin
-{$ifdef mswindows}
-      AllowSetForegroundWindow(pid);
-{$endif mswindows}
-    end;
-    FileClose(h);
-
     if not FileExistsUTF8(FIPCFileName) then
       FileClose(FileCreateUTF8(FIPCFileName));
     for i:=1 to 50 do
@@ -1753,16 +1659,9 @@ var
   M: TMonitor;
   R: TRect;
   SL: TStringList;
-  MI, MI2: TMenuItem;
-  Ico: TIcon;
-  LargeIco, SmallIco : hIcon;
-  MenuCaption: String;
-{$ifdef darwin}
   s: string;
   pic: TPicture;
-{$endif darwin}
 begin
-{$ifdef darwin}
   // Load better icon if possible
   s:=ExtractFilePath(ParamStrUTF8(0)) + '..' + DirectorySeparator + 'Resources'
     + DirectorySeparator + ChangeFileExt(ExtractFileName(ParamStrUTF8(0)), '.icns');
@@ -1780,7 +1679,6 @@ begin
   end;
 
   RegisterURLHandler(@AddTorrentFile);
-{$endif darwin}
 
 
   {$if FPC_FULlVERSION>=30101}
@@ -1821,15 +1719,6 @@ begin
   FPendingClipboardTorrents:=TStringList.Create;
   FFilesCapt:=tabFiles.Caption;
   FPasswords:=TStringList.Create;
-{$ifdef LCLgtk2}
-{$if declared(TCanOffsetEvent)}
-  VSplitter.OnCanOffset:=@VSplitterCanOffset;
-{$else}
-  VSplitter.OnMouseDown:=@VSplitterMouseDown;
-  VSplitter.OnMouseMove:=@VSplitterMouseMove;
-  VSplitter.OnMouseUp:=@VSplitterMouseUp;
-{$endif}
-{$endif}
 
   FSlowResponse:=TProgressImage.Create(MainToolBar);
   with FSlowResponse do begin
@@ -1858,17 +1747,6 @@ begin
   DoDisconnect;
   PageInfo.ActivePageIndex:=0;
   PageInfoChange(nil);
-{$ifdef LCLgtk2}
-  with MainToolBar do begin
-    EdgeBorders:=[ebLeft, ebTop, ebRight, ebBottom];
-    EdgeInner:=esNone;
-    EdgeOuter:=esRaised;
-    Flat:=True;
-  end;
-  i:=acAltSpeed.ImageIndex;
-  acAltSpeed.ImageIndex:=-1;
-  tbtAltSpeed.ImageIndex:=i;
-{$endif}
   txTransferHeader.Color:=GetLikeColor(clBtnFace, -15);
   txTorrentHeader.Color:=txTransferHeader.Color;
   txTransferHeader.Caption:=' ' + txTransferHeader.Caption;
@@ -1986,79 +1864,8 @@ begin
   Application.OnActivate:=@FormActivate;
   Application.OnException:=@ApplicationPropertiesException;
 
-  {$ifdef windows}
-  FFileManagerDefault:=Ini.ReadString('Interface','FileManagerDefault','explorer.exe');
-  FFileManagerDefaultParam:=Ini.ReadString('Interface', 'FileManagerDefaultParam', '/select,"%s"');
-  FGlobalHotkey:=Ini.ReadString('Interface','GlobalHotkey','');
-  FGlobalHotkeyMod:=Ini.ReadString('Interface','GlobalHotkeyMod','0');
-  HotKeyID := GlobalAddAtom('TransGUIHotkey');
-  PrevWndProc:=windows.WNDPROC(SetWindowLongPtr(Self.Handle,GWL_WNDPROC,PtrInt(@WndCallback)));
-  RegisterHotKey(Self.Handle,HotKeyID, VKStringToWord(FGlobalHotkeyMod), VKStringToWord(FGlobalHotkey));
-  // Create UserMenus if any in [UserMenu]
-      j:= 1;
-      repeat
-            MenuCaption := Ini.ReadString('UserMenu','Caption'+IntToStr(j),'nocaption');
-            inc(J);
-      until MenuCaption = 'nocaption';
-      dec(j);
-      if j > 0 then
-        begin
-          if J > 2 then
-            begin
-                  MI := TMenuItem.Create(Self);
-                  MI.Caption:= sUserMenu;
-                  MI.ImageIndex:=6;
-                  pmFiles.Items.Insert(4,MI);
-                  MI2 := TMenuItem.Create(Self);
-                  MI2.Caption:= sUserMenu;
-                  MI2.ImageIndex:=6;
-                  pmTorrents.Items.Insert(2,MI2);
-            end;
-          for i := 1 to j-1 do
-            begin
-                MI := TMenuItem.Create(Self);
-                MI2 := TMenuItem.Create(Self);
-                MI.Caption:= Ini.ReadString('UserMenu','Caption'+IntToStr(i),'');
-                if MI.Caption <> '-' then
-                begin
-                  MI.Tag:= 1000+i;
-                  MI.OnClick:= @acOpenFileExecute;
-                end;
-                try
-                if ExtractIconEx(PChar(Ini.ReadString('UserMenu','ExeName'+IntToStr(i),'')), 0, LargeIco, SmallIco, 1) > null then
-                  begin
-                        Ico := TIcon.Create;
-                        try
-                          Ico.Handle := SmallIco;
-                          Ico.Transparent := True;
-                          Ico.Masked:=True;
-                        finally
-                          ImageList16.AddIcon(Ico);
-                          Ico.Free;
-                          MI.ImageIndex := ImageList16.Count-1;
-                        end;
-                  end;
-                except
-                end;
-                MI2.Caption:= MI.Caption;
-                MI2.Tag:= MI.Tag;
-                MI2.OnClick:=MI.OnClick;
-                MI2.ImageIndex:= MI.ImageIndex;
-                if j > 2 then pmFiles.Items[4].Add(MI)
-                        else pmFiles.Items.Insert(4,MI);
-                if j > 2 then pmTorrents.Items[2].Add(MI2)
-                        else pmTorrents.Items.Insert(2,MI2);
-            end;
-        end;
-  // end Create UserMenu
-  {$else}
-    {$ifdef darwin}
-    FLinuxOpenDoc := Ini.ReadInteger('Interface','FileOpenDoc',0);  // macOS - OpenURL(s, p) = Original version TRGUI
-    {$else}
-    FLinuxOpenDoc := Ini.ReadInteger('Interface','FileOpenDoc',1);
-    {$endif darwin}
-    Ini.WriteInteger('Interface','FileOpenDoc',FLinuxOpenDoc);
-  {$endif windows}
+  FOpenDocMode:=Ini.ReadInteger('Interface', 'FileOpenDoc', 0); // 0 = OpenURL(s, p), as in the original TRGUI
+  Ini.WriteInteger('Interface', 'FileOpenDoc', FOpenDocMode);
 
   BuildScaledImages;
   ApplyIconLayout;
@@ -2143,11 +1950,6 @@ begin
     Ini.UpdateFile;
   except
   end;
-  {$ifdef windows}
-  UnRegisterHotkey(Self.Handle,HotKeyID);
-  GlobalDeleteAtom(HotKeyID);
-  {$endif windows}
-
 end;
 
 procedure TMainForm.FormResize(Sender: TObject);
@@ -2160,11 +1962,7 @@ procedure TMainForm.FormShow(Sender: TObject);
 begin
   if not FMainFormShown then begin
     FMainFormShown:=True;
-{$ifdef LCLgtk2}
-    SetInfoPaneSplitterPosition(Ini.ReadInteger('MainForm', 'VSplitter', VSplitter.GetSplitterPosition));
-{$else}
     VSplitter.SetSplitterPosition(Ini.ReadInteger('MainForm', 'VSplitter', VSplitter.GetSplitterPosition));
-{$endif}
     HSplitter.SetSplitterPosition(Ini.ReadInteger('MainForm', 'HSplitter', HSplitter.GetSplitterPosition));
     MakeFullyVisible;
   end;
@@ -2288,11 +2086,7 @@ procedure TMainForm.acInfoPaneExecute(Sender: TObject);
 begin
   acInfoPane.Checked:=not acInfoPane.Checked;
   PageInfo.Visible:=acInfoPane.Checked;
-{$ifdef LCLgtk2}
-  SetInfoPaneHeight(PageInfo.Height);
-{$else}
   VSplitter.Top:=PageInfo.Top - VSplitter.Height;
-{$endif}
   VSplitter.Visible:=acInfoPane.Checked;
   if VSplitter.Visible then
     PageInfoChange(nil)
@@ -2429,7 +2223,6 @@ begin
 end;
 
 procedure TMainForm.acOpenFileExecute(Sender: TObject);
-var UserDef: boolean;
 begin
   if gTorrents.Items.Count = 0 then
     exit;
@@ -2438,21 +2231,12 @@ begin
   Application.ProcessMessages;
   TryRestoreFilesFocus;
   if FileListPending and FilesFocusRestorePending then exit;
-  if (Sender is TMenuItem) and (TMenuItem(Sender).Tag > 999) then
-    begin
-        UserDef := true;
-        {$ifdef windows}
-        FUserDefinedMenuEx    := Ini.ReadString('UserMenu','ExeName'+IntToStr(TMenuItem(Sender).Tag-1000),'');
-        FUserDefinedMenuParam := Ini.ReadString('UserMenu','Params'+IntToStr(TMenuItem(Sender).Tag-1000),'');
-        {$endif windows}
-    end
-      else UserDef := false;
   if lvFiles.Focused then begin
     if lvFiles.Items.Count = 0 then exit;
-    ExecRemoteFile(FFilesTree.GetFullPath(lvFiles.Row), False, Userdef)
+    ExecRemoteFile(FFilesTree.GetFullPath(lvFiles.Row), False)
   end
   else
-    OpenCurrentTorrent(False, UserDef);
+    OpenCurrentTorrent(False);
 end;
 
 procedure TMainForm.acOptionsExecute(Sender: TObject);
@@ -2466,11 +2250,7 @@ begin
     edRefreshInterval.Value:=Ini.ReadInteger('Interface', 'RefreshInterval', 5);
     edRefreshIntervalMin.Value:=Ini.ReadInteger('Interface', 'RefreshIntervalMin', 20);
     cbCalcAvg.Checked:=FCalcAvg;
-{$ifndef darwin}
-    cbTrayMinimize.Checked:=Ini.ReadBool('Interface', 'TrayMinimize', True);
-{$else}
     cbTrayMinimize.Enabled:=False;
-{$endif}
     cbTrayClose.Checked:=Ini.ReadBool('Interface', 'TrayClose', False);
     cbTrayIconAlways.Checked:=Ini.ReadBool('Interface', 'TrayIconAlways', True);
     cbTrayNotify.Checked:=Ini.ReadBool('Interface', 'TrayNotify', True);
@@ -2483,25 +2263,12 @@ begin
     edCheckVersionDays.Value:=Ini.ReadInteger('Interface', 'CheckNewVersionDays', 5);
     cbCheckNewVersionClick(nil);
     OldCheckVer:=cbCheckNewVersion.Checked;
-{$ifdef linux}
-    if IsUnity then begin
-      cbTrayIconAlways.Enabled:=False;
-      cbTrayIconAlways.Checked:=False;
-      cbTrayMinimize.Enabled:=False;
-      cbTrayMinimize.Checked:=False;
-      cbTrayNotify.Enabled:=False;
-      cbTrayNotify.Checked:=False;
-    end;
-{$endif linux}
     AppNormal;
     if ShowModal = mrOk then begin
       AppBusy;
       Ini.WriteInteger('Interface', 'RefreshInterval', edRefreshInterval.Value);
       Ini.WriteInteger('Interface', 'RefreshIntervalMin', edRefreshIntervalMin.Value);
       Ini.WriteBool('Interface', 'CalcAvg', cbCalcAvg.Checked);
-{$ifndef darwin}
-      Ini.WriteBool('Interface', 'TrayMinimize', cbTrayMinimize.Checked);
-{$endif}
       Ini.WriteBool('Interface', 'TrayClose', cbTrayClose.Checked);
       Ini.WriteBool('Interface', 'TrayIconAlways', cbTrayIconAlways.Checked);
       Ini.WriteBool('Interface', 'TrayNotify', cbTrayNotify.Checked);
@@ -2835,10 +2602,8 @@ var
     if WaitForm = nil then begin
       WaitForm:=TBaseForm.CreateNew(Self);
       with WaitForm do begin
-{$ifndef windows}
         if IsAppHidden then
           ShowInTaskBar:=stAlways;
-{$endif windows}
         Caption:=AppName;
         BorderStyle:=bsToolWindow;
         BorderIcons:=[];
@@ -2857,14 +2622,7 @@ var
       TLabel(Controls[0]).Caption:=AText + '...';
       Show;
       BringToFront;
-{$ifdef lclgtk2}
-      Application.ProcessMessages;
-{$endif lclgtk2}
       Update;
-{$ifdef lclgtk2}
-      sleep(100);
-      Application.ProcessMessages;
-{$endif lclgtk2}
     end;
   end;
 
@@ -2899,9 +2657,7 @@ begin
       try
         if IsAppHidden then begin
           ShowWaitMsg(Caption);
-{$ifndef windows}
           ShowInTaskBar:=stAlways;
-{$endif windows}
         end;
 
         Application.ProcessMessages;
@@ -3166,21 +2922,14 @@ end;
 
 procedure TMainForm.UpdateTray;
 begin
-{$ifndef CPUARM}
-  TrayIcon.Visible:=not IsUnity and
-    (Ini.ReadBool('Interface', 'TrayIconAlways', True)  or
-    ((WindowState = wsMinimized) and Ini.ReadBool('Interface', 'TrayMinimize', True) ) or
-    (not Self.Visible and Ini.ReadBool('Interface', 'TrayClose', False) )
-    );
-{$endif CPUARM}
+  TrayIcon.Visible:=
+    Ini.ReadBool('Interface', 'TrayIconAlways', True) or
+    ((WindowState = wsMinimized) and Ini.ReadBool('Interface', 'TrayMinimize', True)) or
+    (not Self.Visible and Ini.ReadBool('Interface', 'TrayClose', False));
 
-{$ifdef darwin}
   acShowApp.Visible:=False;
   acHideApp.Visible:=False;
   miTSep1.Visible:=False;
-{$else}
-  acHideApp.Visible:=Visible and (WindowState <> wsMinimized);
-{$endif darwin}
   SetRefreshInterval;
   FCalcAvg:=Ini.ReadBool('Interface', 'CalcAvg', True);
 end;
@@ -3213,12 +2962,10 @@ end;
 
 procedure TMainForm.DownloadFinished(const TorrentName: string);
 begin
-{$ifndef CPUARM}
   if not TrayIcon.Visible or not Ini.ReadBool('Interface', 'TrayNotify', True) then exit;
   TrayIcon.BalloonHint:=Format(sFinishedDownload, [TorrentName]);
   TrayIcon.BalloonTitle:=sDownloadComplete;
   TrayIcon.ShowBalloonHint;
-{$endif CPUARM}
 end;
 
 Procedure TMainForm.DoOpenFlagsZip(Sender: TObject; var AStream: TStream);
@@ -4644,22 +4391,11 @@ end;
 procedure TMainForm.ApplicationPropertiesIdle(Sender: TObject; var Done: Boolean);
 begin
   UpdateUI;
-{$ifdef LCLcarbon}
-  CheckSynchronize;
-{$endif LCLcarbon}
   Done:=True;
 end;
 
 procedure TMainForm.ApplicationPropertiesMinimize(Sender: TObject);
 begin
-{$ifdef CPUARM}
-  exit;
-{$endif  CPUARM}
-
-{$ifndef darwin}
-  if not IsUnity and Ini.ReadBool('Interface', 'TrayMinimize', True) then
-    HideApp;
-{$endif darwin}
   UpdateTray;
 end;
 
@@ -4731,16 +4467,6 @@ begin
         end;
     end;
 
-end;
-
-procedure TMainForm.FormWindowStateChange(Sender: TObject);
-begin
-{$ifdef lclgtk2}
-  if WindowState = wsMinimized then
-    ApplicationPropertiesMinimize(nil)
-  else
-    ApplicationPropertiesRestore(nil);
-{$endif lclgtk2}
 end;
 
 procedure TMainForm.gTorrentsCellAttributes(Sender: TVarGrid; ACol, ARow, ADataCol: integer; AState: TGridDrawState;
@@ -4931,11 +4657,7 @@ end;
 procedure TMainForm.gTorrentsResize(Sender: TObject);
 begin
   if not FStarted then begin
-{$ifdef LCLgtk2}
-    SetInfoPaneSplitterPosition(Ini.ReadInteger('MainForm', 'VSplitter', VSplitter.GetSplitterPosition));
-{$else}
     VSplitter.SetSplitterPosition(Ini.ReadInteger('MainForm', 'VSplitter', VSplitter.GetSplitterPosition));
-{$endif}
     HSplitter.SetSplitterPosition(Ini.ReadInteger('MainForm', 'HSplitter', HSplitter.GetSplitterPosition));
   end;
 end;
@@ -4954,13 +4676,6 @@ begin
     ASortCol:=idxSeedsTotal;
   if ASortCol = idxPeers then
     ASortCol:=idxLeechersTotal;
-end;
-
-procedure TMainForm.HSplitterChangeBounds(Sender: TObject);
-begin
-{$ifdef windows}
-  Update;
-{$endif windows}
 end;
 
 procedure TMainForm.lvFilesDblClick(Sender: TObject);
@@ -5258,11 +4973,6 @@ begin
   end;
 end;
 
-{$ifdef LCLcarbon}
-type
-  THackApplication = class(TApplication)
-  end;
-{$endif LCLcarbon}
 
 procedure TMainForm.TickTimerTimer(Sender: TObject);
 var
@@ -5343,17 +5053,6 @@ begin
         panDetailsWait.BringToFront;
       end;
 
-{$ifdef LCLcarbon}
-    THackApplication(Application).ProcessAsyncCallQueue;
-    if Active and (WindowState <> wsMinimized) then begin
-      if not FFormActive then begin
-        FFormActive:=True;
-        CheckClipboardLink;
-      end;
-    end
-    else
-      FFormActive:=False;
-{$endif LCLcarbon}
   finally
     TickTimer.Enabled:=True;
   end;
@@ -5368,27 +5067,8 @@ end;
 
 procedure TMainForm.FormClose(Sender: TObject; var CloseAction: TCloseAction);
 begin
-{$ifdef CPUARM}
-//  CloseAction:=caMinimize;
-  BeforeCloseApp;
-  exit;
-{$endif CPUARM}
-
   if Ini.ReadBool('Interface', 'TrayClose', False) then begin
-{$ifdef darwin}
     CloseAction:=caMinimize;
-{$else}
-{$ifdef linux}
-    if IsUnity then
-      CloseAction:=caMinimize
-    else
-{$endif linux}
-    begin
-      CloseAction:=caHide;
-      HideApp;
-      UpdateTray;
-    end;
-{$endif darwin}
     exit;
   end;
   BeforeCloseApp;
@@ -5426,65 +5106,6 @@ procedure TMainForm.pmTorrentsPopup(Sender: TObject);
 begin
   FRestoreFilesFocus:=False;
   UpdateUI;
-end;
-
-procedure TMainForm.TrayIconDblClick(Sender: TObject);
-begin
-{$ifndef darwin}
-//  acShowApp.Execute;
-if (MainForm.Visible = false) or (MainForm.WindowState = wsMinimized) then
-    MainForm.ShowApp
-    else
-    MainForm.HideApp;
-{$endif darwin}
-end;
-
-procedure TMainForm.VSplitterChangeBounds(Sender: TObject);
-begin
-{$ifdef windows}
-  Update;
-{$endif windows}
-end;
-
-procedure TMainForm.VSplitterCanOffset(Sender: TObject; var NewOffset: Integer; var Accept: Boolean);
-begin
-  if NewOffset <> 0 then
-    SetInfoPaneHeight(PageInfo.Height - NewOffset);
-  NewOffset:=0;
-  Accept:=False;
-end;
-
-procedure TMainForm.VSplitterMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-begin
-  if Button <> mbLeft then
-    exit;
-  FVSplitterDragging:=True;
-  FVSplitterDragHeight:=PageInfo.Height;
-  FVSplitterDragY:=Mouse.CursorPos.Y;
-  SetCaptureControl(VSplitter);
-end;
-
-procedure TMainForm.VSplitterMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
-begin
-  if not FVSplitterDragging then
-    exit;
-  if not (ssLeft in Shift) then begin
-    FVSplitterDragging:=False;
-    SetCaptureControl(nil);
-    exit;
-  end;
-  SetInfoPaneHeight(FVSplitterDragHeight - (Mouse.CursorPos.Y - FVSplitterDragY));
-end;
-
-procedure TMainForm.VSplitterMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-begin
-  if not FVSplitterDragging then
-    exit;
-  FVSplitterDragging:=False;
-  SetCaptureControl(nil);
-  if Button <> mbLeft then
-    exit;
-  SetInfoPaneHeight(FVSplitterDragHeight - (Mouse.CursorPos.Y - FVSplitterDragY));
 end;
 
 procedure TMainForm.UrlLabelClick(Sender: TObject);
@@ -5939,9 +5560,6 @@ begin
       btNewClick(nil);
       if Ini.ReadInteger('Hosts', 'Count', 0) = 0 then begin
         panTop.Visible:=False;
-{$ifdef LCLgtk2}
-        panTop.Height:=0;
-{$endif LCLgtk2}
         with Page.BorderSpacing do
           Top:=Left;
         tabPaths.TabVisible:=False;
@@ -6835,12 +6453,8 @@ begin
   StatusBar.Panels[1].Text:=Format(sDownSpeed, [GetHumanSize(DownSpeed, 1)]) + ' (' + s + ')';
   StatusBar.Panels[2].Text:=Format(sUpSpeed, [GetHumanSize(UpSpeed, 1)]) + ' (' + ss + ')';
 
-{$ifndef LCLcarbon}
-  // There is memory leak in TTrayIcon implementation for Mac.
-  // Disable tray icon update for Mac.
   TrayIcon.Hint:=Format(sDownloadingSeeding,
         [RpcObj.InfoStatus, LineEnding, DownCnt, SeedCnt, LineEnding, StatusBar.Panels[1].Text, StatusBar.Panels[2].Text]);
-{$endif LCLcarbon}
   finally
     Labels.Free;
     Paths.Free;
@@ -7410,9 +7024,6 @@ procedure TMainForm.FillSessionInfo(s: TJSONObject);
 var
   d, u: integer;
 begin
-{$ifdef LCLcarbon}
-  TrayIcon.Tag:=0;
-{$endif LCLcarbon}
   if RpcObj.RPCVersion < 14 then begin
     TR_STATUS_STOPPED:=TR_STATUS_STOPPED_1;
     TR_STATUS_CHECK_WAIT:=TR_STATUS_CHECK_WAIT_1;
@@ -7435,10 +7046,6 @@ begin
   UpdateUIRpcVersion(RpcObj.RPCVersion);
 
   if RpcObj.RPCVersion >= 5 then begin
-{$ifdef LCLcarbon}
-    if acAltSpeed.Checked <> (s.Booleans['alt-speed-enabled']) then
-      TrayIcon.Tag:=1;
-{$endif LCLcarbon}
     acAltSpeed.Checked:=s.Booleans['alt-speed-enabled'];
     if s.Booleans['blocklist-enabled'] then acUpdateBlocklist.Tag:=1 else acUpdateBlocklist.Tag:=0;
     acUpdateBlocklist.Enabled:=s.Booleans['blocklist-enabled'];
@@ -7460,18 +7067,11 @@ begin
     else
       u:=-1;
   end;
-{$ifdef LCLcarbon}
-  UpdateUI;
-{$endif LCLcarbon}
   if (FCurDownSpeedLimit <> d) or (FCurUpSpeedLimit <> u) then begin
     FCurDownSpeedLimit:=d;
     FCurUpSpeedLimit:=u;
     FillSpeedsMenu;
   end;
-{$ifdef LCLcarbon}
-  if TrayIcon.Tag <> 0 then
-    TrayIcon.InternalUpdate;
-{$endif LCLcarbon}
 end;
 
 function TMainForm.FillStatistics(s: TJSONObject): boolean;
@@ -7917,52 +7517,20 @@ begin
   end;
 end;
 
-function TMainForm.ExecRemoteFile(const FileName: string; SelectFile: boolean; Userdef: boolean): boolean;
+function TMainForm.ExecRemoteFile(const FileName: string; SelectFile: boolean): boolean;
 
   procedure _Exec(s: string);
   var
     p: string;
   begin
     AppBusy;
-    if SelectFile then begin
-      if FileExistsUTF8(s) then begin
-{$ifdef mswindows}
-if Userdef then
-              begin
-                    p:=Format(FUserDefinedMenuParam, [s]);
-                    s:=FUserDefinedMenuEx;
-              end
-              else
-              begin
-                    p:=Format(FFileManagerDefaultParam, [s]); ; // ALERT  //      p:=Format('/select,"%s"', [s]);
-                    s:=FFileManagerDefault;                               //      s:='explorer.exe';
-              end;
-{$else}
-        p:='';
-        s:=ExtractFilePath(s);
-{$endif mswindows}
-      end else begin
-        p:='';
-        s:=ExtractFilePath(s);
-      end;
-    end else begin
-
-    end;
-
-{$ifdef mswindows}
-if Userdef then
-              begin
-                    p := Format(FUserDefinedMenuParam, [s]);
-                    s := FUserDefinedMenuEx;
-              end ;
-                    Result:=OpenURL(s, p);
-{$else}
-      if FLinuxOpenDoc = 0 then
-          Result := OpenURL(s, p)    // does not work in latest linux very well!!!! old.vers
-      else
-          Result := OpenDocument(s); // works better - new.vers
-{$endif mswindows}
-
+    p:='';
+    if SelectFile then
+      s:=ExtractFilePath(s);
+    if FOpenDocMode = 0 then
+      Result:=OpenURL(s, p)
+    else
+      Result:=OpenDocument(s);
     AppNormal;
     if not Result then begin
       ForceAppNormal;
@@ -7971,25 +7539,11 @@ if Userdef then
   end;
 
 var
-  s,r: string;
-  i: integer;
+  s: string;
 begin
   Result:= false;
   s:=MapRemoteToLocal(FileName);
   if s <> '' then begin
-    if Userdef then
-      begin
-      if (lvFiles.Focused) and (lvFiles.SelCount > 1) then
-          begin
-                r := '';
-                for i := 0 to lvFiles.Items.Count-1 do
-                  if lvFiles.RowSelected[i] then
-                    if r = '' then r := MapRemoteToLocal(FFilesTree.GetFullPath(i)) + '"'  else
-                      r := r + ' "'+ MapRemoteToLocal(FFilesTree.GetFullPath(i)) + '"';
-                s := r;
-          end;
-        // else s := '"' + s + '"';
-      end;
     _Exec(s);
     exit;
   end;
@@ -8638,11 +8192,6 @@ begin
   VSplitter.Top:=PageInfo.Top - VSplitter.Height;
 end;
 
-procedure TMainForm.SetInfoPaneSplitterPosition(APosition: integer);
-begin
-  SetInfoPaneHeight(PageInfo.Height + VSplitter.Top - APosition);
-end;
-
 function TMainForm.GetPageInfoType(pg: TTabSheet): TAdvInfoType;
 begin
   if pg = tabGeneral then
@@ -8727,7 +8276,7 @@ begin
   end;
 end;
 
-procedure TMainForm.OpenCurrentTorrent(OpenFolderOnly: boolean; UserDef: boolean);
+procedure TMainForm.OpenCurrentTorrent(OpenFolderOnly: boolean);
 var
   res: TJSONObject;
   p, s: string;
@@ -8766,7 +8315,7 @@ begin
       finally
         res.Free;
       end;
-    ExecRemoteFile(p, sel, Userdef);
+    ExecRemoteFile(p, sel);
   finally
     AppNormal;
   end;
@@ -8880,9 +8429,6 @@ begin
   s:=Ini.ReadString('Connection.' + FCurConn, 'UpSpeeds', DefSpeeds);
   _FillMenu(pmUpSpeeds.Items, s, @DoSetUploadSpeed, FCurUpSpeedLimit);
   _FillMenu(pmiUpSpeedLimit, s, @DoSetUploadSpeed, FCurUpSpeedLimit);
-{$ifdef LCLcarbon}
-  TrayIcon.InternalUpdate;
-{$endif LCLcarbon}
 end;
 
 initialization

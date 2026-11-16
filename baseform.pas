@@ -91,10 +91,6 @@ begin
       end
       else
         h:=Height;
-{$ifdef LCLcarbon}
-      if C is TPageControl then
-        Inc(h, ScaleInt(10));
-{$endif LCLcarbon}
       Inc(ht, h + BorderSpacing.Top + BorderSpacing.Bottom + BorderSpacing.Around*2);
     end;
   end;
@@ -121,10 +117,8 @@ var
   w, h: integer;
 begin
   with C do begin
-{$ifdef darwin}
     if C is TButtonPanel then
       exit;
-{$endif darwin}
     if C is TWinControl then
       TWinControl(C).DisableAlign;
     try
@@ -181,7 +175,6 @@ begin
         THackControl(C).CalculatePreferredSize(w, h, True);
         C.Width:=w;
       end;
-{$ifdef darwin}
       // Always use standard button height on OS X for proper theming
       if C.Visible and (C is TCustomButton) then begin
         w:=0;
@@ -196,12 +189,6 @@ begin
       if C is TCustomGroupBox then
         with TCustomGroupBox(C).ChildSizing do
           TopBottomSpacing:=TopBottomSpacing + i;
-{$endif darwin}
-{$ifdef LCLgtk2}
-      // Fix panel color bug on GTK2
-      if (C is TCustomPanel) and ParentColor and (Color = clDefault) then
-        Color:=clForm;
-{$endif LCLgtk2}
 
       if C is TWinControl then
         with TWinControl(C) do
@@ -222,10 +209,6 @@ begin
 end;
 
 procedure TBaseForm.DoCreate;
-{$ifdef LCLcarbon}
-var
-  i: integer;
-  {$endif LCLcarbon}
 begin
   InitScale;
   HandleNeeded;
@@ -233,13 +216,6 @@ begin
   DoScale(Self);
   if FNeedAutoSize then
     AutoSizeForm(Self);
-{$ifdef LCLcarbon}
-  // Destroy handles of child controls to fix the LCL Carbon bug.
-  // Without this hack, it will not be possible to hide form's controls.
-  for i:=0 to ControlCount - 1 do
-    if Controls[i] is TWinControl then
-      THackControl(Controls[i]).DestroyHandle;
-{$endif LCLcarbon}
   inherited DoCreate;
 end;
 

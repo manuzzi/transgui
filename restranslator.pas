@@ -269,34 +269,9 @@ var
   FDefaultLangDir: AnsiString;
 
 function DefaultLangDir: AnsiString;
-{$ifdef unix}
-  function _IsLangDir(const dir: string): boolean;
-  var
-    sr: TSearchRec;
-  begin
-    Result:=FindFirstUtf8(dir + ExtractFileNameOnly(ParamStrUtf8(0)) + '.*', faAnyFile, sr) = 0;
-    FindClose(sr);
-  end;
-
-var
-  s: string;
-{$endif unix}
 begin
-  if FDefaultLangDir = '' then begin
+  if FDefaultLangDir = '' then
     FDefaultLangDir:=ExtractFilePath(ParamStrUtf8(0)) + 'lang' + DirectorySeparator;
-{$ifdef unix}
-    if not _IsLangDir(FDefaultLangDir) then begin
-      s:='/usr/share/' + ExtractFileNameOnly(ParamStrUtf8(0)) + '/lang/';
-      if _IsLangDir(s) then
-        FDefaultLangDir:=s
-      else begin
-        s:='/usr/local/share/' + ExtractFileNameOnly(ParamStrUtf8(0)) + '/lang/';
-        if _IsLangDir(s) then
-          FDefaultLangDir:=s;
-      end;
-    end;
-{$endif unix}
-  end;
   Result:=FDefaultLangDir;
 end;
 
@@ -432,12 +407,6 @@ begin
   LazGetLanguageIDs(lLang, sLang);
   lLang:=LowerCase(lLang);
   sLang:=LowerCase(sLang);
-{$ifdef windows}
-  if sLang = 'ch' then begin
-    sLang:='zh';
-    lLang:=StringReplace(lLang, 'ch_', 'zh_', []);
-  end;
-{$endif windows}
   i:=Pos('.', lLang);
   if i > 0 then
     SetLength(lLang, i - 1);

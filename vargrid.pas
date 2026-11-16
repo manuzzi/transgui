@@ -255,8 +255,7 @@ procedure Register;
 
 implementation
 
-uses Variants, Math, GraphType, lclintf, Themes, types, lclproc
-    {$ifdef LCLcarbon} , carbonproc {$endif LCLcarbon};
+uses Variants, Math, GraphType, lclintf, Themes, types, lclproc;
 
 const
   roSelected = 1;
@@ -787,9 +786,6 @@ begin
   with Canvas do
     if (Font.Color = clWindow) and (Brush.Color = clHighlight) then begin
       Font.Color:=clHighlightText;
-{$ifdef LCLgtk2}
-      Brush.Color:=ColorToRGB(Brush.Color); // Workaround for LCL bug
-{$endif LCLgtk2}
   end;
 end;
 
@@ -800,15 +796,7 @@ var
   ca: TCellAttributes;
   R, RR: TRect;
 begin
-{$ifdef LCLcarbon}
-  IsCtrl:=ssMeta in GetCarbonShiftState;
-{$else}
-{$ifdef LCLCocoa}
   IsCtrl:=ssMeta in Shift;
-{$else}
-  IsCtrl:=ssCtrl in Shift;
-{$endif LCLCocoa}
-{$endif LCLcarbon}
   CheckBoxClicked:=False;
   pt:=MouseToCell(Point(X,Y));
   if (ssLeft in Shift) and
@@ -844,7 +832,7 @@ begin
       end;
     end;
   end;
-  if (ssRight in Shift) {$ifdef darwin} or (Shift*[ssLeft, ssCtrl] = [ssLeft, ssCtrl]) {$endif} then begin
+  if (ssRight in Shift) or (Shift*[ssLeft, ssCtrl] = [ssLeft, ssCtrl]) then begin
     SetFocus;
     if (pt.x >= FixedCols) and (pt.x < ColCount) and
        (pt.y >= FixedRows) and (pt.y < RowCount) then begin
@@ -1431,9 +1419,6 @@ var
   Rs: Boolean;
   R: TRect;
   ClipArea: Trect;
-{$ifdef LCLgtk2}
-  Rgn: HRGN;
-{$endif LCLgtk2}
 
   procedure DoDrawCell;
   begin
@@ -1446,11 +1431,6 @@ var
         Include(gds, gdPushed);
       end;
     end;
-{$ifdef LCLgtk2}
-    Rgn := CreateRectRgn(R.Left, R.Top, R.Right, R.Bottom);
-    SelectClipRgn(Canvas.Handle, Rgn);
-    DeleteObject(Rgn);
-{$endif LCLgtk2}
     DrawCell(aCol, aRow, R, gds);
   end;
 
@@ -1499,13 +1479,6 @@ begin
       if (R.Right > R.Left) and HorizontalIntersect(R, ClipArea) then
         DoDrawCell;
     end;
-
-{$ifdef LCLgtk2}
-    with ClipArea do
-      Rgn := CreateRectRgn(Left, Top, Right, Bottom);
-    SelectClipRgn(Canvas.Handle, Rgn);
-    DeleteObject(Rgn);
-{$endif LCLgtk2}
 
     // Draw the focus Rect
     if FocusRectVisible and (ARow=inherited Row) and

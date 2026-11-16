@@ -23,7 +23,6 @@ inherited MainForm: TMainForm
   OnKeyDown = FormKeyDown
   OnResize = FormResize
   OnShow = FormShow
-  OnWindowStateChange = FormWindowStateChange
   object panTop: TPanel[0]
     Left = 0
     Height = 301
@@ -42,8 +41,7 @@ inherited MainForm: TMainForm
       Width = 5
       AutoSnap = False
       MinSize = 50
-      OnChangeBounds = HSplitterChangeBounds
-    end
+      end
     object panFilter: TPanel
       Left = 0
       Height = 301
@@ -1082,7 +1080,6 @@ inherited MainForm: TMainForm
     Align = alBottom
     AutoSnap = False
     MinSize = 80
-    OnChangeBounds = VSplitterChangeBounds
     ResizeAnchor = akBottom
   end
   object MainToolBar: TToolBar[4]
@@ -4830,8 +4827,6 @@ inherited MainForm: TMainForm
     BalloonFlags = bfInfo
     BalloonTimeout = 10000
     PopUpMenu = pmTray
-    OnClick = TrayIconDblClick
-    OnDblClick = TrayIconDblClick
     left = 456
     top = 56
   end
