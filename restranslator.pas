@@ -269,9 +269,19 @@ var
   FDefaultLangDir: AnsiString;
 
 function DefaultLangDir: AnsiString;
+var
+  s: string;
 begin
-  if FDefaultLangDir = '' then
-    FDefaultLangDir:=ExtractFilePath(ParamStrUtf8(0)) + 'lang' + DirectorySeparator;
+  if FDefaultLangDir = '' then begin
+    // In an application bundle the translations are in Contents/Resources/lang.
+    // Otherwise, e.g. when running a development build, use the lang folder
+    // next to the executable.
+    s:=ExtractFilePath(ParamStrUtf8(0)) + '..' + DirectorySeparator + 'Resources' + DirectorySeparator + 'lang' + DirectorySeparator;
+    if DirectoryExistsUTF8(s) then
+      FDefaultLangDir:=s
+    else
+      FDefaultLangDir:=ExtractFilePath(ParamStrUtf8(0)) + 'lang' + DirectorySeparator;
+  end;
   Result:=FDefaultLangDir;
 end;
 

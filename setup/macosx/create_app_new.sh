@@ -1,11 +1,30 @@
 #!/bin/sh
 
+# Build "Transmission Remote GUI.app" as a universal (arm64 + x86_64) application
+# and package it in a disk image.
+#
+# Usage: create_app_new.sh [lazarus_dir]
+#
+# Environment:
+#   TOOLCHAIN_DIR      toolchain installed by install_deps.sh (default: ~/pascal-toolchain)
+#   CODESIGN_IDENTITY  signing identity, e.g. "Developer ID Application: Name (TEAMID)".
+#                      Default: ad-hoc signature, which is only good for local use.
+#   NOTARY_PROFILE     notarytool keychain profile (see "xcrun notarytool store-credentials").
+#                      When set, the disk image is notarized and stapled. It requires a
+#                      Developer ID identity. No credentials are ever read from the repository.
+#   CI                 when set, dependencies are not installed and the image is not opened.
+
 set -ex
 
-lazarus_dir="${1:-/Applications/Lazarus/}"
+toolchain_dir="${TOOLCHAIN_DIR:-$HOME/pascal-toolchain}"
+fpc_dir="$toolchain_dir/fpc-3.2.2"
+lazarus_dir="${1:-$toolchain_dir/lazarus}"
 lazbuild_bin="$lazarus_dir/lazbuild"
-if [ "${lazarus_dir%/}" != "/Applications/Lazarus" ] && [ ! -x "$lazbuild_bin" ]; then
-  echo "Unable to find lazbuild at $lazbuild_bin." >&2
+sign_identity="${CODESIGN_IDENTITY:--}"
+notary_profile="${NOTARY_PROFILE-}"
+
+if [ -n "$notary_profile" ] && [ "$sign_identity" = "-" ]; then
+  echo "NOTARY_PROFILE requires CODESIGN_IDENTITY to be a Developer ID identity." >&2
   exit 1
 fi
 
@@ -16,28 +35,34 @@ if [ -z "${CI-}" ]; then
   ./install_deps.sh
 fi
 
-fpc_bin="/usr/local/bin/fpc"
+fpc_bin="$fpc_dir/bin/fpc"
 if [ ! -x "$fpc_bin" ]; then
-  echo "Unable to find fpc at $fpc_bin." >&2
+  echo "Unable to find fpc at $fpc_bin. Run install_deps.sh first." >&2
   exit 1
 fi
+if [ ! -x "$lazbuild_bin" ]; then
+  echo "Unable to find lazbuild at $lazbuild_bin. Run install_deps.sh first." >&2
+  exit 1
+fi
+
+PPC_CONFIG_PATH="$fpc_dir/etc"
+export PPC_CONFIG_PATH
+
 fpc_ver="Free Pascal Compiler version $("$fpc_bin" -iV)"
+lazarus_ver="$("$lazbuild_bin" -v)"
 exename=../../transgui
 appname="Transmission Remote GUI"
 dmg_dist_file="../../Release/transgui-$prog_ver.dmg"
 dmg_temp_file="$dmg_dist_file.tmp.dmg"
 dmgfolder=./Release
 appfolder="$dmgfolder/$appname.app"
-if [ ! -x "$lazbuild_bin" ]; then
-  echo "Unable to find lazbuild at $lazbuild_bin." >&2
-  exit 1
-fi
-lazarus_ver="$("$lazbuild_bin" -v)"
+openssl_dir=../../Release/openssl
 mount_device=""
 remove_dmg_temp=0
 remove_dmgfolder=0
 remove_tmp_dmg=0
 lazarus_pcp=""
+build_dir=""
 
 detach_disk_image() {
   detach_device=$1
@@ -89,16 +114,15 @@ cleanup() {
   if [ -n "$lazarus_pcp" ]; then
     rm -rf "$lazarus_pcp" || :
   fi
+  if [ -n "$build_dir" ]; then
+    rm -rf "$build_dir" || :
+  fi
 
   if [ "$status" -eq 0 ]; then
     status=$cleanup_status
   fi
   exit "$status"
 }
-
-if [ ! "$lazarus_dir" = "" ]; then
-  lazdir=LAZARUS_DIR="$lazarus_dir"
-fi
 
 if [ -e ../../about.lfm.bak ]; then
   echo "../../about.lfm.bak already exists; refusing to overwrite it." >&2
@@ -117,49 +141,75 @@ trap cleanup 0
 trap 'exit 1' HUP INT TERM
 
 lazarus_pcp="$(mktemp -d "${TMPDIR:-/tmp}/transgui-lazarus-pcp.XXXXXX")" || exit 1
+build_dir="$(mktemp -d "${TMPDIR:-/tmp}/transgui-build.XXXXXX")" || exit 1
 
 cleanup_lazbuild_state() {
   rm -rf ../../units ../../lib
   mkdir -p ../../units ../../lib "$lazarus_pcp"
 }
 
-run_lazbuild() {
+# Compile the application for one CPU architecture. The LCL and the other
+# packages are rebuilt too (-r), so that they are compiled by the same compiler
+# and through the assembler shim installed by install_deps.sh.
+build_arch() {
+  arch="$1"
+  compiler="$2"
+
   cleanup_lazbuild_state
-  "$lazbuild_bin" -B ../../trcomp.lpk --lazarusdir="$lazarus_dir" --compiler="$fpc_bin" --cpu=x86_64 --widgetset=cocoa --pcp="$lazarus_pcp"
-  "$lazbuild_bin" -B ../../transgui.lpi --lazarusdir="$lazarus_dir" --compiler="$fpc_bin" --cpu=x86_64 --widgetset=cocoa --pcp="$lazarus_pcp"
+  "$lazbuild_bin" -B -r ../../trcomp.lpk --lazarusdir="$lazarus_dir" --compiler="$compiler" --cpu="$arch" --os=darwin --widgetset=cocoa --pcp="$lazarus_pcp"
+  "$lazbuild_bin" -B ../../transgui.lpi --lazarusdir="$lazarus_dir" --compiler="$compiler" --cpu="$arch" --os=darwin --widgetset=cocoa --pcp="$lazarus_pcp"
+  cp ../../units/transgui "$build_dir/transgui.$arch"
+}
+
+sign_path() {
+  if [ "$sign_identity" = "-" ]; then
+    codesign --force --sign - "$1"
+  else
+    codesign --force --options runtime --timestamp --sign "$sign_identity" "$1"
+  fi
 }
 
 mkdir -p ../../Release/
 sed -i.bak "s/'Version %s'/'Version %s Build $build'#13#10'Compiled by: $fpc_ver, Lazarus v$lazarus_ver'/" ../../about.lfm
 
-run_lazbuild
+build_arch aarch64 "$fpc_dir/bin/ppca64"
+build_arch x86_64 "$fpc_dir/bin/ppcx64"
 
-# Building Intel version
-make -j"$(sysctl -n hw.ncpu)" -C ../.. clean CPU_TARGET=x86_64 FPC="$fpc_bin" "$lazdir"
-make -j"$(sysctl -n hw.ncpu)" -C ../.. CPU_TARGET=x86_64 FPC="$fpc_bin" "$lazdir"
-
-if ! [ -e $exename ]; then
-  echo "$exename does not exist"
+lipo -create "$build_dir/transgui.aarch64" "$build_dir/transgui.x86_64" -output "$exename"
+if [ "$(lipo -archs "$exename" | tr ' ' '\n' | sort | tr '\n' ' ')" != "arm64 x86_64 " ]; then
+  echo "$exename is not a universal arm64 + x86_64 binary." >&2
   exit 1
 fi
 strip "$exename"
+
+./build_openssl.sh "$openssl_dir"
 
 remove_dmgfolder=1
 rm -rf "$appfolder"
 
 echo "Creating $appfolder..."
-mkdir -p "$appfolder/Contents/MacOS/lang"
-mkdir -p "$appfolder/Contents/Resources"
+mkdir -p "$appfolder/Contents/MacOS"
+mkdir -p "$appfolder/Contents/Resources/lang"
+mkdir -p "$appfolder/Contents/Frameworks"
 
 mv "$exename" "$appfolder/Contents/MacOS"
-cp ../../lang/transgui.* "$appfolder/Contents/MacOS/lang"
+# Data files must not be inside Contents/MacOS: codesign treats that folder as code.
+cp ../../lang/transgui.* "$appfolder/Contents/Resources/lang"
 
 cp ../../history.txt "$dmgfolder"
 cp ../../README.md "$dmgfolder"
 
 cp PkgInfo "$appfolder/Contents"
 cp transgui.icns "$appfolder/Contents/Resources"
+cp "$openssl_dir/libssl.3.dylib" "$openssl_dir/libcrypto.3.dylib" "$appfolder/Contents/Frameworks"
+cp "$openssl_dir/LICENSE.txt" "$appfolder/Contents/Resources/openssl-LICENSE.txt"
 sed -e "s/@prog_ver@/$prog_ver/" Info.plist > "$appfolder/Contents/Info.plist"
+
+# Sign the nested code first, then the application itself.
+sign_path "$appfolder/Contents/Frameworks/libcrypto.3.dylib"
+sign_path "$appfolder/Contents/Frameworks/libssl.3.dylib"
+sign_path "$appfolder"
+codesign --verify --strict --verbose=2 "$appfolder"
 
 ln -s /Applications "$dmgfolder/Drag \"Transmission Remote GUI\" here!"
 
@@ -195,6 +245,15 @@ mount_device=""
 remove_dmg_temp=1
 rm -f "$dmg_temp_file"
 hdiutil convert tmp.dmg -format UDBZ -imagekey zlib-level=9 -o "$dmg_temp_file"
+
+if [ "$sign_identity" != "-" ]; then
+  codesign --force --timestamp --sign "$sign_identity" "$dmg_temp_file"
+fi
+if [ -n "$notary_profile" ]; then
+  xcrun notarytool submit "$dmg_temp_file" --keychain-profile "$notary_profile" --wait
+  xcrun stapler staple "$dmg_temp_file"
+fi
+
 mv -f "$dmg_temp_file" "$dmg_dist_file"
 remove_dmg_temp=0
 
