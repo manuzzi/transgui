@@ -189,16 +189,33 @@ function EnsureOpenSSLLoaded(out ASSLName, AUtilName: string): boolean;
 
 implementation
 
-uses Main, ssl_openssl_lib, synafpc, blcksock;
+uses Main, ssl_openssl_lib, synafpc, blcksock, utils, LazFileUtils;
 
 var
   OpenSSLInitLock: TCriticalSection;
+
+// The application bundle ships its own OpenSSL libraries in Contents/Frameworks,
+// because the unversioned libssl.dylib of macOS cannot be loaded by applications.
+// Outside of a bundle the default library names are left untouched.
+procedure UseBundledOpenSSL;
+var
+  dir, sslLib, utilLib: string;
+begin
+  dir:=ExtractFilePath(ParamStrUTF8(0)) + '..' + DirectorySeparator + 'Frameworks' + DirectorySeparator;
+  sslLib:=dir + 'libssl.3.dylib';
+  utilLib:=dir + 'libcrypto.3.dylib';
+  if FileExistsUTF8(sslLib) and FileExistsUTF8(utilLib) then begin
+    DLLSSLName:=sslLib;
+    DLLUtilName:=utilLib;
+  end;
+end;
 
 function EnsureOpenSSLLoaded(out ASSLName, AUtilName: string): boolean;
 begin
   OpenSSLInitLock.Enter;
   try
     if not IsSSLloaded then begin
+      UseBundledOpenSSL;
       InitSSLInterface;
     end;
     Result:=IsSSLloaded;
