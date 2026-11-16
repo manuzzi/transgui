@@ -151,8 +151,6 @@ Geo IP database is needed to resolve country by IP address.~Download this databa
 Global bandwidth settings=Indstillinger for global båndbredde
 Global peer limit=Global peer grænse
 Global statistics=Globale statistikker
-Handle .torrent files by %s=Håndter .torrent files med %s
-Handle magnet links by %s=Håndter magnet links med %s
 Hash=Hash
 Have=Modtaget
 Hide=Skjul
@@ -282,7 +280,6 @@ Stop seeding when inactive for=Stop seeding efter inaktivitet i
 Stop torrent=Stop torrent
 Stop=Stop
 Stopped=Stoppet
-System integration=Systemintegration
 T&ools=Værktøjer(&O)
 TB=TB
 Test port=Test port
@@ -386,7 +383,6 @@ The maximum history of directories for storage of torrents=Den maksimale histori
 Toolbar=Værktøjslinje
 Total: %s=I alt: %s
 Unauthorized User=Uautoriseret bruger
-User Menu=Brugermenu
 for example: *.avi *.mkv tom*jerry*.avi=for eksempel: *.avi *.mkv tom*jerry*.avi
 
 Config file=Konfigurationsfil
