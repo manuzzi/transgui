@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Transmission Remote GUI is a Lazarus/Free Pascal desktop client for Transmission's JSON-RPC API. `transgui.lpr` is the entry point, `transgui.lpi` stores Lazarus project settings, and most application code lives in root `.pas` units paired with `.lfm` form resources. Keep this file focused on repository-specific guidance; README, `.github/workflows/ci.yml`, `Makefile.fpc`, and scripts under `setup/` remain the source of truth for detailed commands and packaging flows.
+Transmission Remote GUI is a Lazarus/Free Pascal macOS (Cocoa) desktop client for Transmission's JSON-RPC API. `transgui.lpr` is the entry point, `transgui.lpi` stores Lazarus project settings, and most application code lives in root `.pas` units paired with `.lfm` form resources. Keep this file focused on repository-specific guidance; README, `.github/workflows/ci.yml`, `Makefile.fpc`, and scripts under `setup/macosx/` remain the source of truth for detailed commands and packaging flows.
 
 ## Project Structure & Architecture
 
@@ -10,10 +10,10 @@ Transmission Remote GUI is a Lazarus/Free Pascal desktop client for Transmission
 - `rpc.pas` owns Transmission daemon communication through Synapse HTTP/SSL code. `TRpcThread` performs background polling and uses `Synchronize` for UI updates, so daemon-facing behavior should generally go through this layer rather than direct UI-side HTTP calls.
 - `baseform.pas` provides shared form behavior for dialogs such as `AddTorrent`, `ConnOptions`, `Options`, and `TorrProps`.
 - `varlist.pas` and `vargrid.pas` implement the custom data/grid layer used by torrent, peer, tracker, and file lists.
-- `restranslator.pas` loads `lang/transgui.*` files at runtime; this app localization system is separate from installer translations under `Inno Setup lang/`.
+- `restranslator.pas` loads `lang/transgui.*` files at runtime; this is the app's own localization system.
 - `utils.pas` contains UTF-8-safe file/config helpers, including `TIniFileUtf8`; prefer the existing UTF-8 wrappers used by the app over plain RTL path/file APIs.
-- `synapse/source/lib` is vendored networking code. Treat `synapse/` and bundled OpenSSL files under `setup/win*/openssl/` as third-party code unless applying a deliberate upstream or security fix.
-- `setup/` contains Unix, macOS, and Windows packaging scripts; `snap/` contains Snap metadata; `rpc-spec.txt` documents the Transmission RPC protocol.
+- `synapse/source/lib` is vendored networking code. Treat `synapse/` as third-party code unless applying a deliberate upstream or security fix. It still contains code for other operating systems; leave it as is.
+- `setup/macosx/` contains the macOS packaging scripts; `rpc-spec.txt` documents the Transmission RPC protocol.
 
 Generated top-level output directories include `units/`, `lib/`, and `Release/`; other generated outputs include `*.lrs`, `*.res`, and the `transgui` binary. Avoid committing generated artifacts. `Makefile` is tracked but generated from `Makefile.fpc`, so do not hand-edit it for build-rule changes; when build rules change, regenerate it using `fpcmake` and commit the tracked derived file with the source change.
 
@@ -24,19 +24,18 @@ Install Lazarus and Free Pascal first; follow README or the relevant `setup/` sc
 - `lazbuild -B transgui.lpi --lazarusdir=<lazarus_dir>` rebuilds the Lazarus project and refreshes generated resources.
 - `make LAZARUS_DIR=<lazarus_dir> all` builds the desktop binary after the `lazbuild` step.
 - `make clean` removes compiler output.
-- `make LAZARUS_DIR=<lazarus_dir> zipdist` builds a release zip under `Release/` after the `lazbuild` step when packaging validation is needed.
 
-Platform packaging entry points live under `setup/` and `snap/`; consult those scripts instead of duplicating their flow here. Some release scripts stamp build metadata into tracked files temporarily, so check `git status` afterward.
+The macOS packaging entry points live under `setup/macosx/`; consult those scripts instead of duplicating their flow here. Some release scripts stamp build metadata into tracked files temporarily, so check `git status` afterward.
 
 ## Coding Style & Localization
 
-Follow `.editorconfig` for charset, line endings, final newlines, trailing whitespace, and indentation; preserve its listed exceptions. Preserve `{$mode objfpc}{$H+}`, existing `{$ifdef windows}`, `{$ifdef unix}`, and `{$ifdef darwin}` branches, and existing filename casing; avoid case-only renames. Use English for code comments. Form classes generally use `T<Name>Form`, and UI changes should keep `.pas` units and matching `.lfm` files synchronized. Avoid manual `.lfm` edits unless they are small, intentional, and compatible with Lazarus output.
+Follow `.editorconfig` for charset, line endings, final newlines, trailing whitespace, and indentation; preserve its listed exceptions. Preserve `{$mode objfpc}{$H+}` and existing filename casing; avoid case-only renames. The project targets macOS only, so do not add code paths or conditional compilation for other operating systems. Use English for code comments. Form classes generally use `T<Name>Form`, and UI changes should keep `.pas` units and matching `.lfm` files synchronized. Avoid manual `.lfm` edits unless they are small, intentional, and compatible with Lazarus output.
 
 For localization, update `lang/transgui.template` and affected `lang/transgui.*` files together when changing user-visible strings. Preserve keys, placeholders, quoting, and placeholder order. When bumping releases, keep `VERSION.txt`, `main.pas` `AppVersion`, `transgui.lpi` version metadata, and `history.txt` consistent.
 
 ## Runtime Configuration & Portability
 
-The app stores settings with `TIniFileUtf8` to preserve UTF-8 paths and values. Home directory resolution is part of startup behavior: `--home=<dir>` overrides the default, an `.ini` file next to the executable with the same base name enables portable mode, and otherwise the app falls back to the platform configuration directory. When changing startup, file, or path handling, preserve this behavior across Windows, Linux, and macOS.
+The app stores settings with `TIniFileUtf8` to preserve UTF-8 paths and values. Home directory resolution is part of startup behavior: `--home=<dir>` overrides the default, an `.ini` file next to the executable with the same base name enables portable mode, and otherwise the app falls back to the platform configuration directory. When changing startup, file, or path handling, preserve this behavior on macOS.
 
 ## Testing & Verification
 
