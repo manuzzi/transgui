@@ -57,11 +57,13 @@ You need to have [Homebrew](https://brew.sh/) installed. Execute this command to
 
 ### Building from source
 
-1. Make sure you have Lazarus (Cocoa widgetset) and the Free Pascal compiler installed and working.
-2. Download the source archive and extract it to a folder, or clone the repository.
-3. Open a terminal and cd to the source folder.
-4. Execute the `lazbuild -B transgui.lpi --lazarusdir=<lazarus_dir>` command to build the transgui.res file, replacing `<lazarus_dir>` with your Lazarus installation path.
-5. Execute the `make LAZARUS_DIR=<lazarus_dir>` command to build the application.
+An Apple Silicon Mac is required: the Intel half of the universal application is cross-compiled and runs under Rosetta 2. The application needs macOS 14 or later.
+
+1. Clone the repository and cd to the `setup/macosx` folder.
+2. Execute `./install_deps.sh` to install Free Pascal and Lazarus into `~/pascal-toolchain` (set `TOOLCHAIN_DIR` to use another folder). It does not need `sudo` and changes nothing outside that folder.
+3. Execute `./create_app_new.sh` to build the universal (arm64 and x86_64) application with OpenSSL 3 bundled inside, and to create `Release/transgui-<version>.dmg`.
+
+The application is signed ad hoc, which is enough to run it on the Mac that built it. To sign with a Developer ID and to notarize the disk image, set `CODESIGN_IDENTITY` to your identity and `NOTARY_PROFILE` to a keychain profile created with `xcrun notarytool store-credentials` before running the script.
 
 ## Command line parameters
 

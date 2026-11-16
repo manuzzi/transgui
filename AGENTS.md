@@ -19,13 +19,15 @@ Generated top-level output directories include `units/`, `lib/`, and `Release/`;
 
 ## Build, Test, and Development Commands
 
-Install Lazarus and Free Pascal first; follow README or the relevant `setup/` script for platform-specific dependency details. The path examples below use `<lazarus_dir>`; replace it with the local Lazarus installation path.
+An Apple Silicon Mac is required. `setup/macosx/install_deps.sh` installs Free Pascal 3.2.2 and Lazarus into `~/pascal-toolchain` (override with `TOOLCHAIN_DIR`) without `sudo`. The path examples below use `<lazarus_dir>`, which is `~/pascal-toolchain/lazarus` by default.
 
-- `lazbuild -B transgui.lpi --lazarusdir=<lazarus_dir>` rebuilds the Lazarus project and refreshes generated resources.
-- `make LAZARUS_DIR=<lazarus_dir> all` builds the desktop binary after the `lazbuild` step.
+Free Pascal 3.2.2 emits Objective-C metadata that the current Apple linker rejects (`malformed method list atom`). The toolchain therefore uses the assembler shim in `setup/macosx/fpc-asm-shim/`, and the LCL and every package must be compiled with that toolchain: do not use a prebuilt Lazarus.
+
+- `setup/macosx/create_app_new.sh` builds the universal (arm64 + x86_64) app bundle with OpenSSL 3 and creates the DMG in `Release/`.
+- `lazbuild -B -r transgui.lpi --lazarusdir=<lazarus_dir> --compiler=<ppca64|ppcx64> --cpu=<aarch64|x86_64> --widgetset=cocoa` builds one architecture; the binary is written to `units/transgui`. Register the `trcomp` package first with `lazbuild -B -r trcomp.lpk` and the same options.
 - `make clean` removes compiler output.
 
-The macOS packaging entry points live under `setup/macosx/`; consult those scripts instead of duplicating their flow here. Some release scripts stamp build metadata into tracked files temporarily, so check `git status` afterward.
+The macOS packaging entry points live under `setup/macosx/`; consult those scripts instead of duplicating their flow here. They sign ad hoc by default; `CODESIGN_IDENTITY` and `NOTARY_PROFILE` (a `notarytool` keychain profile) enable Developer ID signing and notarization. Some release scripts stamp build metadata into tracked files temporarily, so check `git status` afterward.
 
 ## Coding Style & Localization
 

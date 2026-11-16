@@ -52,11 +52,11 @@ Using Homebrew.
 - You need to have Homebrew installed. Execute this command to install Transmission Remote GUI: "brew install --cask transmission-remote-gui"
 
 Building from source.
-- Make sure you have Lazarus (Cocoa widgetset) and the Free Pascal compiler installed and working.
-- Download the source archive and extract it to a folder, or clone the repository.
-- Open a terminal and cd to the source folder;
-- Execute the "lazbuild -B transgui.lpi --lazarusdir=<lazarus_dir>" command to build the transgui.res file, replacing <lazarus_dir> with your Lazarus installation path;
-- Execute the "make LAZARUS_DIR=<lazarus_dir>" command to build the application.
+An Apple Silicon Mac is required: the Intel half of the universal application is cross-compiled and runs under Rosetta 2. The application needs macOS 14 or later.
+- Clone the repository and cd to the "setup/macosx" folder;
+- Execute "./install_deps.sh" to install Free Pascal and Lazarus into ~/pascal-toolchain (set TOOLCHAIN_DIR to use another folder). It does not need sudo and changes nothing outside that folder;
+- Execute "./create_app_new.sh" to build the universal (arm64 and x86_64) application with OpenSSL 3 bundled inside, and to create "Release/transgui-<version>.dmg".
+The application is signed ad hoc, which is enough to run it on the Mac that built it. To sign with a Developer ID and to notarize the disk image, set CODESIGN_IDENTITY to your identity and NOTARY_PROFILE to a keychain profile created with "xcrun notarytool store-credentials" before running the script.
 
 COMMAND LINE PARAMETERS
 
