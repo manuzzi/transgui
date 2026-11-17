@@ -45,3 +45,4 @@ Release/
 
 # transgui binary
 /transgui
+.DS_Store
