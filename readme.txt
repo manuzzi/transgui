@@ -23,10 +23,13 @@ this exception statement from your version.
 
 Transmission Remote GUI is a feature-rich macOS front-end to remotely control a Transmission daemon via its RPC protocol. It is faster and has more functionality than the built-in Transmission web interface.
 
+Since version 6.0.0 the application is macOS only and runs natively on Apple Silicon and Intel Macs. The original cross-platform project, with Windows and Linux builds, is at https://github.com/transmission-remote-gui/transgui
+
 Transmission Remote GUI is developed using Lazarus RAD and the Free Pascal compiler.
 
 Features:
- * Native macOS application
+ * Native macOS application, universal for Apple Silicon and Intel
+ * Native macOS notification when a download finishes
  * uTorrent-like interface
  * Select files to download
  * Choose file priority
@@ -35,28 +38,41 @@ Features:
  * Per-torrent options
 
 Project home:
-https://github.com/transmission-remote-gui/transgui
+https://github.com/manuzzi/transgui
 
 INSTALLATION
 
-The installers are listed on the GitHub Releases page:
-https://github.com/transmission-remote-gui/transgui/releases/latest
+The disk images are listed on the GitHub Releases page:
+https://github.com/manuzzi/transgui/releases/latest
 
-Without a package manager.
+The application needs macOS 14 Sonoma or later. It runs natively on both Apple Silicon and Intel Macs.
+
+Disk image.
 This method requires no additional prerequisites or dependencies:
   1. Download the disk image from the release page.
   2. Open the image file to mount the image.
-  3. Directly run the application or drag the app icon to your disk / Applications folder.
+  3. Drag the app icon to your Applications folder and run it from there.
 
-Using Homebrew.
-- You need to have Homebrew installed. Execute this command to install Transmission Remote GUI: "brew install --cask transmission-remote-gui"
+First launch.
+A disk image built without a Developer ID certificate, such as the ones produced by the CI workflow of this repository, is signed ad hoc and is not notarized, so macOS blocks the first launch. To open the application anyway:
+  1. Try to open it once and dismiss the warning.
+  2. Open System Settings > Privacy & Security, scroll to the Security section and click "Open Anyway".
+You can also remove the quarantine flag from a terminal: xattr -dr com.apple.quarantine "/Applications/Transmission Remote GUI.app"
 
 Building from source.
 An Apple Silicon Mac is required: the Intel half of the universal application is cross-compiled and runs under Rosetta 2. The application needs macOS 14 or later.
 - Clone the repository and cd to the "setup/macosx" folder;
-- Execute "./install_deps.sh" to install Free Pascal and Lazarus into ~/pascal-toolchain (set TOOLCHAIN_DIR to use another folder). It does not need sudo and changes nothing outside that folder;
+- Execute "./install_deps.sh" to install Free Pascal 3.2.2 and Lazarus 4.8 into ~/pascal-toolchain (set TOOLCHAIN_DIR to use another folder). It does not need sudo and changes nothing outside that folder;
 - Execute "./create_app_new.sh" to build the universal (arm64 and x86_64) application with OpenSSL 3 bundled inside, and to create "Release/transgui-<version>.dmg".
 The application is signed ad hoc, which is enough to run it on the Mac that built it. To sign with a Developer ID and to notarize the disk image, set CODESIGN_IDENTITY to your identity and NOTARY_PROFILE to a keychain profile created with "xcrun notarytool store-credentials" before running the script.
+
+NOTIFICATIONS AND PERMISSIONS
+
+The application shows a native macOS notification when a download finishes.
+- Turn it on or off with "Show notifications" on the General tab of the Options dialog. It is on by default and does not depend on the menu bar icon options.
+- The first time, macOS asks for permission to show notifications. You can change your answer later in System Settings > Notifications > Transmission Remote GUI.
+- Notifications are shown only when the application runs from its .app bundle, not when the bare binary is started from a build folder.
+- On macOS Sequoia and later, macOS may also ask for permission to use the local network, which the application needs to reach a Transmission daemon on your network.
 
 COMMAND LINE PARAMETERS
 

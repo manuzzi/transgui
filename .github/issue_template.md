@@ -2,7 +2,7 @@
 
 For bug report, please provide version info of:
 
-1. Operating system
+1. macOS version and Mac type (Apple Silicon or Intel)
 2. Transmission Daemon
 3. Transmission Remote GUI
 

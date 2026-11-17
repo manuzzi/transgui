@@ -36,7 +36,7 @@ The macOS packaging entry points live under `setup/macosx/`; consult those scrip
 
 Follow `.editorconfig` for charset, line endings, final newlines, trailing whitespace, and indentation; preserve its listed exceptions. Preserve `{$mode objfpc}{$H+}` and existing filename casing; avoid case-only renames. The project targets macOS only, so do not add code paths or conditional compilation for other operating systems. Use English for code comments. Form classes generally use `T<Name>Form`, and UI changes should keep `.pas` units and matching `.lfm` files synchronized. Avoid manual `.lfm` edits unless they are small, intentional, and compatible with Lazarus output.
 
-For localization, update `lang/transgui.template` and affected `lang/transgui.*` files together when changing user-visible strings. Preserve keys, placeholders, quoting, and placeholder order. When bumping releases, keep `VERSION.txt`, `main.pas` `AppVersion`, `transgui.lpi` version metadata, and `history.txt` consistent.
+For localization, update `lang/transgui.template` and affected `lang/transgui.*` files together when changing user-visible strings. Preserve keys, placeholders, quoting, and placeholder order. When bumping releases, keep `VERSION.txt`, `main.pas` `AppVersion`, `transgui.lpi` version metadata, and `history.txt` consistent; the bump commit is titled `vX.Y.Z`, and pushing a tag runs the CI release job. `README.md` and `readme.txt` carry the same user documentation (`readme.txt` uses CRLF), so update them together.
 
 ## Runtime Configuration & Portability
 
