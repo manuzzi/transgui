@@ -72,7 +72,7 @@ jobs:
           {
             "ignorePatterns": [
               {
-                "pattern": "^https://github\\.com/transmission-remote-gui/transgui/actions/workflows/ci\\.yml/badge\\.svg$"
+                "pattern": "^https://github\\.com/manuzzi/transgui/actions/workflows/ci\\.yml/badge\\.svg$"
               }
             ]
           }
