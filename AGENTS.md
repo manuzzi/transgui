@@ -23,6 +23,8 @@ An Apple Silicon Mac is required. `setup/macosx/install_deps.sh` installs Free P
 
 Free Pascal 3.2.2 emits Objective-C metadata that the current Apple linker rejects (`malformed method list atom`). The toolchain therefore uses the assembler shim in `setup/macosx/fpc-asm-shim/`, and the LCL and every package must be compiled with that toolchain: do not use a prebuilt Lazarus.
 
+Do not enable size optimization (`-Os`, Lazarus "Smaller code") in `transgui.lpi`. With it, Free Pascal 3.2.2 on aarch64 compiles block copies of packed records (for example `TTextStyle` in `DrawProgressCell`, or `TVarSin` in Synapse) into a loop that copies four times too many bytes. That overwrites the stack, and the app exits silently with code 255 as soon as the torrent list is painted. A smoke test with `-hidden` never paints, so check changes with a visible window and at least one torrent.
+
 - `setup/macosx/create_app_new.sh` builds the universal (arm64 + x86_64) app bundle with OpenSSL 3 and creates the DMG in `Release/`.
 - `lazbuild -B -r transgui.lpi --lazarusdir=<lazarus_dir> --compiler=<ppca64|ppcx64> --cpu=<aarch64|x86_64> --widgetset=cocoa` builds one architecture; the binary is written to `units/transgui`. Register the `trcomp` package first with `lazbuild -B -r trcomp.lpk` and the same options.
 - `make clean` removes compiler output.
