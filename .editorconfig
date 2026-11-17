@@ -19,6 +19,9 @@ end_of_line = crlf
 indent_size = 2
 indent_style = space
 
+[Makefile]
+trim_trailing_whitespace = false
+
 [*.{isl,icns}]
 charset = false
 end_of_line = false
