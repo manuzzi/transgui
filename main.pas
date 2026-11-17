@@ -43,7 +43,7 @@ uses
 
 const
   AppName = 'Transmission Remote GUI';
-  AppVersion = '5.18.0';
+  AppVersion = '6.0.0';
 
 resourcestring
   sAll = 'All torrents';

@@ -1,3 +1,48 @@
+6.0.0 (Nov 17, 2026)
+ - Drop Windows, Linux and legacy macOS (Carbon) support: Transmission Remote GUI is now macOS only
+ - Require macOS 14 or later
+ - Add native Apple Silicon support; the application is a universal (arm64 and x86_64) bundle
+ - Bundle OpenSSL 3.5 inside the application bundle
+ - Use native macOS notifications when a download finishes
+ - Replace "Show notifications in tray icon" with "Show notifications", which no longer depends on the tray icon
+ - Remove the "Minimize to tray" option
+ - Add the Local Network permission for macOS Sequoia and later (#1497)
+ - Add optional Developer ID signing and notarization to the build script (CODESIGN_IDENTITY and NOTARY_PROFILE)
+ - Install the Free Pascal and Lazarus toolchain without sudo; build with FPC 3.2.2 and Lazarus 4.8
+ - Run CI on Apple Silicon with GitHub Actions
+ - Add support for torrent labels and label grouping, with translations (Transmission 3.0 and later)
+ - Use the table format in torrent-get when the daemon supports it
+ - Support gzip-compressed HTTP payloads
+ - Use IPv6 by default with fallback
+ - Reduce the periodic RPC payload by fetching pieces less often and caching static fields
+ - Send booleans instead of integers in RPC requests
+ - Scale main-window icons for high-DPI displays
+ - Make the first-launch window placement predictable
+ - Store the GeoIP download in the user directory
+ - Fix high-resolution wheel delta handling in grids (#1575) and multi-selection on macOS
+ - Fix the alignment of controls in the Options, Daemon and Connection dialogs
+ - Preserve access keys in all translations; update and fix several translations
+ - Fix a command injection when opening URLs
+ - Prevent torrent IPC record injection
+ - Restrict RPC redirects to root-relative paths
+ - Prevent denial of service in HTTP error body sanitization
+ - Fix overflow in Base32 decode
+ - Bound folder history values, download template parsing and folder tree expansion in Add Torrent
+ - Validate RPC responses (torrent info, session statistics, magnet copy) and handle malformed tracker metadata and missing per-torrent fields safely
+ - Make clipboard torrent auto-add safer and protect clipboard contents
+ - Load OpenSSL only when HTTPS is used
+ - Prevent hangs on close while waiting for a remote daemon (#1523)
+ - Prevent stale RPC cleanup from corrupting concurrent requests
+ - Serialize GeoIP resolver access and make the resolver cache and shutdown safer
+ - Prevent FilterTimer from firing before RPC initialization
+ - Keep file selection and Torrent Properties consistent with multi-selection
+ - Fix custom quick search when the first row matches
+ - Prevent source cleanup from deleting unrelated files
+ - Prevent queue position overflow, clamp the speed history after a clock rollback and guard grid hit testing
+ - Keep variant row ownership explicit in the data grids
+ - Remove the misleading RPC password warning
+ - Add AGENTS.md with repository guidelines
+
 5.18.0 (Oct 11, 2019)
  - Enable smart linking (#1252)
  - Add basic snap package files (#1109)
