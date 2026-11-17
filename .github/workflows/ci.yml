@@ -192,6 +192,7 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
+          name: transgui-macos-dmg
           path: artifacts
 
       - name: Publish release assets
@@ -200,7 +201,7 @@ jobs:
         run: |
           set -euo pipefail
           files=(
-            "artifacts/transgui-macos-dmg/transgui-${PROG_VER}.dmg"
+            "artifacts/transgui-${PROG_VER}.dmg"
           )
 
           for file in "${files[@]}"; do
